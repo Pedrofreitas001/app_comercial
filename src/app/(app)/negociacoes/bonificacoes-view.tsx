@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { KpiCard } from "@/components/kpi-card";
 import { BonifStatusBadge } from "@/components/bonif-status-badge";
 import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
-import { listarBonificacoes, mockVendedores } from "@/lib/mock-data";
+import { listarBonificacoes, mockVendedores, produtoCatalogo } from "@/lib/mock-data";
 
 const STATUS_OPTIONS = [
   { value: "todos", label: "Todas as situações" },
@@ -125,11 +125,11 @@ export function BonificacoesView() {
                   <TableHead>Pedido</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vendedor</TableHead>
+                  <TableHead>Produtos</TableHead>
                   <TableHead className="text-center">Peças</TableHead>
                   <TableHead className="text-center">Faturamento</TableHead>
                   <TableHead>Data a pagar</TableHead>
                   <TableHead>Situação</TableHead>
-                  <TableHead>Anotações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -145,6 +145,13 @@ export function BonificacoesView() {
                     </TableCell>
                     <TableCell className="max-w-[240px] truncate">{row.cliente}</TableCell>
                     <TableCell className="text-muted-foreground">{row.vendedor}</TableCell>
+                    <TableCell className="max-w-[220px] text-muted-foreground">
+                      <span className="line-clamp-2">
+                        {row.itens
+                          .map((item) => `${produtoCatalogo(item.sku)?.descricao ?? item.sku} ×${item.qtd}`)
+                          .join(", ")}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-center tabular-nums">{formatNumber(row.pecas)} un.</TableCell>
                     <TableCell className="text-center font-medium tabular-nums">
                       {formatBRLPreco(row.valor)}
@@ -152,9 +159,6 @@ export function BonificacoesView() {
                     <TableCell className="text-muted-foreground">{row.dataPagamento ?? "—"}</TableCell>
                     <TableCell>
                       <BonifStatusBadge status={row.status} />
-                    </TableCell>
-                    <TableCell className="max-w-[240px] truncate text-muted-foreground">
-                      {row.observacoes ?? "—"}
                     </TableCell>
                   </TableRow>
                 ))}

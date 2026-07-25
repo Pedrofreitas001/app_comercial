@@ -9,7 +9,14 @@ import { KpiCard } from "@/components/kpi-card";
 import { NegociacaoStatusBadge } from "@/components/negociacao-status-badge";
 import { SkuTooltip } from "@/components/sku-tooltip";
 import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
-import { bonifStatus, itemTotais, mockCatalogoRef, mockTickets, ticketTotais } from "@/lib/mock-data";
+import {
+  bonifStatus,
+  bonificacaoTotais,
+  itemTotais,
+  mockCatalogoRef,
+  mockTickets,
+  ticketTotais,
+} from "@/lib/mock-data";
 import { NfForm } from "./nf-form";
 import { BonificacaoControl } from "./bonificacao-control";
 
@@ -47,6 +54,7 @@ export default async function NegociacaoDetalhePage({
 
   const totais = ticketTotais(ticket);
   const statusBoni = bonifStatus(ticket.bonificacao);
+  const boniTotais = bonificacaoTotais(ticket.bonificacao);
 
   return (
     <div className="space-y-6">
@@ -104,10 +112,10 @@ export default async function NegociacaoDetalhePage({
         />
         <KpiCard
           label="Bonificação do pedido"
-          value={ticket.bonificacao ? formatBRL(ticket.bonificacao.valor) : "—"}
+          value={ticket.bonificacao ? formatBRL(boniTotais.valor) : "—"}
           hint={
             ticket.bonificacao
-              ? `${formatNumber(ticket.bonificacao.pecas)} peças · ${
+              ? `${formatNumber(boniTotais.pecas)} peças · ${
                   statusBoni === "pago" ? "paga" : statusBoni === "atrasada" ? "atrasada" : "pendente"
                 }`
               : "sem bonificação"
@@ -201,7 +209,7 @@ export default async function NegociacaoDetalhePage({
               <span className="text-muted-foreground">
                 Bonificação:{" "}
                 <span className="font-medium text-foreground tabular-nums">
-                  {formatBRLPreco(ticket.bonificacao.valor)}
+                  {formatBRLPreco(boniTotais.valor)}
                 </span>
               </span>
             )}

@@ -1,12 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatNumber } from "@/lib/format";
-import { mockEstoque } from "@/lib/mock-data";
+import { estoqueNormalizadoDe, mockEstoque } from "@/lib/mock-data";
 
 function statusEstoque(quantidade: number) {
   if (quantidade === 0) return { label: "Zerado", className: "bg-destructive/10 text-destructive" };
@@ -42,36 +48,60 @@ export function EstoqueView() {
                 <TableHead>SKU</TableHead>
                 <TableHead>Produto</TableHead>
                 <TableHead>Categoria</TableHead>
-                <TableHead className="text-center">Disponível</TableHead>
+                <TableHead className="text-center">Bruto (STRALOG)</TableHead>
+                <TableHead className="text-center">Normalizado</TableHead>
                 <TableHead>Vencimento mais próximo</TableHead>
                 <TableHead>Situação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {linhas.map((row) => {
-                const status = statusEstoque(row.quantidade);
+                const norm = estoqueNormalizadoDe(row.sku);
+                const status = statusEstoque(norm.normalizado);
                 return (
                   <TableRow key={row.sku}>
                     <TableCell className="font-mono text-xs text-muted-foreground">{row.sku}</TableCell>
-                    <TableCell className="max-w-[280px] truncate font-medium">{row.descricao}</TableCell>
+                    <TableCell className="max-w-[240px] truncate font-medium">{row.descricao}</TableCell>
                     <TableCell className="text-muted-foreground">{row.categoria}</TableCell>
+                    <TableCell className="text-center text-muted-foreground tabular-nums">
+                      {formatNumber(norm.bruto)} {row.unidade}
+                    </TableCell>
                     <TableCell className="text-center font-medium tabular-nums">
-                      {formatNumber(row.quantidade)} {row.unidade}
+                      {formatNumber(norm.normalizado)} {row.unidade}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {row.vencimentoProximo ?? "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={status.className}>
-                        {status.label}
-                      </Badge>
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge variant="outline" className={status.className}>
+                          {status.label}
+                        </Badge>
+                        {norm.aguardandoBaixa && (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Badge variant="outline" className="cursor-help bg-warning/10 text-warning" />
+                              }
+                            >
+                              <Clock data-icon="inline-start" />
+                              Aguardando baixa · {formatNumber(norm.pendente)} un.
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="max-w-64">
+                              {formatNumber(norm.pendente)} un. já negociadas desde a última importação do
+                              STRALOG ainda não foram abatidas pelo operador logístico. O estoque
+                              normalizado já considera essa baixa pendente.
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })}
               {linhas.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     Nenhum SKU encontrado para “{busca}”.
                   </TableCell>
                 </TableRow>

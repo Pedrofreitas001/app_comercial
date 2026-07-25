@@ -1,17 +1,18 @@
 import Link from "next/link";
-import { Boxes, CalendarClock, PackageX, TriangleAlert, Upload } from "lucide-react";
+import { Boxes, CalendarClock, Clock, PackageX, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/kpi-card";
 import { formatNumber } from "@/lib/format";
-import { mockEstoque, mockEstoqueDataReferencia } from "@/lib/mock-data";
+import { estoqueNormalizadoDe, mockEstoque, mockEstoqueDataReferencia } from "@/lib/mock-data";
 import { EstoqueView } from "./estoque-view";
 
 export default function EstoquePage() {
-  const totalUnidades = mockEstoque.reduce((acc, row) => acc + row.quantidade, 0);
-  const skusDisponiveis = mockEstoque.filter((row) => row.quantidade > 0).length;
-  const skusBaixos = mockEstoque.filter((row) => row.quantidade > 0 && row.quantidade <= 30).length;
-  const skusZerados = mockEstoque.filter((row) => row.quantidade === 0).length;
+  const normalizados = mockEstoque.map((row) => estoqueNormalizadoDe(row.sku));
+  const totalUnidades = normalizados.reduce((acc, n) => acc + n.normalizado, 0);
+  const skusZerados = normalizados.filter((n) => n.normalizado === 0).length;
+  const aguardandoBaixa = normalizados.filter((n) => n.aguardandoBaixa);
+  const pendenteTotal = aguardandoBaixa.reduce((acc, n) => acc + n.pendente, 0);
 
   return (
     <div className="space-y-6">
@@ -19,7 +20,7 @@ export default function EstoquePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Estoque</h1>
           <p className="text-sm text-muted-foreground">
-            Posição sincronizada do armazém — somente leitura, atualizada por importação.
+            Posição do armazém, normalizada pelas vendas ainda não abatidas pelo operador logístico.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -33,22 +34,26 @@ export default function EstoquePage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="SKUs com estoque"
-          value={formatNumber(skusDisponiveis)}
-          hint={`${formatNumber(totalUnidades)} unidades no total`}
+          label="Estoque normalizado"
+          value={formatNumber(totalUnidades)}
+          hint="unidades, já descontando vendas pendentes de baixa"
           icon={Boxes}
         />
         <KpiCard
-          label="SKUs com estoque baixo"
-          value={formatNumber(skusBaixos)}
-          hint="30 unidades ou menos"
-          icon={TriangleAlert}
-          tone={skusBaixos > 0 ? "warning" : "default"}
+          label="Aguardando baixa"
+          value={formatNumber(aguardandoBaixa.length)}
+          hint={
+            aguardandoBaixa.length > 0
+              ? `${formatNumber(pendenteTotal)} un. vendidas ainda não abatidas no STRALOG`
+              : "tudo abatido pelo operador logístico"
+          }
+          icon={Clock}
+          tone={aguardandoBaixa.length > 0 ? "warning" : "default"}
         />
         <KpiCard
           label="SKUs zerados"
           value={formatNumber(skusZerados)}
-          hint="risco direto de ruptura"
+          hint="considerando o estoque normalizado"
           icon={PackageX}
           tone={skusZerados > 0 ? "warning" : "default"}
         />

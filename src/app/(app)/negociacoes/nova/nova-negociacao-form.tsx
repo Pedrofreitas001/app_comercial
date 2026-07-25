@@ -22,6 +22,7 @@ import {
   MOTIVO_SEM_ESTOQUE,
   MOTIVOS,
   estoqueDisponivelDe,
+  estoqueNormalizadoDe,
   mockClientes,
   mockProdutos,
   mockVendedores,
@@ -52,6 +53,17 @@ function novoItem(): ItemForm {
   };
 }
 
+interface BonifItemForm {
+  key: string;
+  sku: string;
+  qtd: number;
+  precoBase: number;
+}
+
+function novoItemBoni(): BonifItemForm {
+  return { key: Math.random().toString(36).slice(2), sku: "", qtd: 1, precoBase: 0 };
+}
+
 const clienteOptions = mockClientes.map((c) => ({
   value: c.codigo,
   label: c.nomeResumido,
@@ -71,10 +83,31 @@ export function NovaNegociacaoForm() {
   const [observacoes, setObservacoes] = useState("");
   const [itens, setItens] = useState<ItemForm[]>([novoItem()]);
   const [temBonificacao, setTemBonificacao] = useState(false);
-  const [boniPecas, setBoniPecas] = useState("");
-  const [boniValor, setBoniValor] = useState("");
+  const [itensBoni, setItensBoni] = useState<BonifItemForm[]>([]);
   const [boniData, setBoniData] = useState("");
   const [salvando, setSalvando] = useState(false);
+
+  const boniTotais = useMemo(
+    () =>
+      itensBoni.reduce(
+        (acc, item) => ({ pecas: acc.pecas + item.qtd, valor: acc.valor + item.qtd * item.precoBase }),
+        { pecas: 0, valor: 0 },
+      ),
+    [itensBoni],
+  );
+
+  function atualizarItemBoni(key: string, patch: Partial<BonifItemForm>) {
+    setItensBoni((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  }
+
+  function onSkuBoniChange(key: string, sku: string) {
+    const produto = produtoCatalogo(sku);
+    atualizarItemBoni(key, { sku, precoBase: produto?.preco ?? 0 });
+  }
+
+  function removerItemBoni(key: string) {
+    setItensBoni((prev) => prev.filter((item) => item.key !== key));
+  }
 
   const cliente = mockClientes.find((c) => c.codigo === clienteCodigo) ?? null;
 
@@ -139,7 +172,7 @@ export function NovaNegociacaoForm() {
 
   const itensValidos = itens.filter((item) => item.sku);
   const pendencias = itensValidos.filter((item) => item.qtdFinal !== item.qtdV1 && !item.motivo);
-  const bonificacaoIncompleta = temBonificacao && (!boniPecas || !boniValor);
+  const bonificacaoIncompleta = temBonificacao && itensBoni.filter((item) => item.sku).length === 0;
   const podeSalvar =
     Boolean(clienteCodigo) && itensValidos.length > 0 && pendencias.length === 0 && !bonificacaoIncompleta;
 
@@ -147,7 +180,7 @@ export function NovaNegociacaoForm() {
     if (!podeSalvar) {
       toast.error("Revise a negociação", {
         description: bonificacaoIncompleta
-          ? "Informe peças e faturamento da bonificação, ou desmarque a opção."
+          ? "Escolha ao menos um produto na bonificação, ou remova a opção."
           : "Selecione um cliente e informe o motivo em todo item com quantidade divergente.",
       });
       return;
@@ -225,7 +258,7 @@ export function NovaNegociacaoForm() {
         <CardContent className="space-y-4">
           {itens.map((item) => {
             const produto = produtoCatalogo(item.sku);
-            const estoque = item.sku ? estoqueDisponivelDe(item.sku) : null;
+            const norm = item.sku ? estoqueNormalizadoDe(item.sku) : null;
             const divergente = item.sku && item.qtdFinal !== item.qtdV1;
             const totalItem = item.qtdFinal * item.precoNegociado;
             const precisaMotivo = divergente && !item.motivo;
@@ -244,11 +277,20 @@ export function NovaNegociacaoForm() {
                         searchPlaceholder="Buscar por SKU ou descrição..."
                         emptyText="Nenhum produto encontrado."
                       />
-                      {produto && (
-                        <p className="text-xs text-muted-foreground">
-                          Tabela {formatBRLPreco(produto.preco ?? 0)} · Estoque{" "}
-                          {formatNumber(estoque ?? 0)} un.
-                        </p>
+                      {produto && norm && (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span>Tabela {formatBRLPreco(produto.preco ?? 0)}</span>
+                          <span>STRALOG {formatNumber(norm.bruto)} un.</span>
+                          <span className={norm.aguardandoBaixa ? "font-medium text-warning" : "font-medium text-foreground"}>
+                            Provisionado {formatNumber(norm.normalizado)} un.
+                          </span>
+                          {norm.aguardandoBaixa && (
+                            <Badge variant="outline" className="bg-warning/10 text-warning">
+                              <TriangleAlert data-icon="inline-start" />
+                              {formatNumber(norm.pendente)} un. aguardando baixa no STRALOG
+                            </Badge>
+                          )}
+                        </div>
                       )}
                     </div>
                     <div className="space-y-1.5">
@@ -381,37 +423,80 @@ export function NovaNegociacaoForm() {
           <Button
             variant={temBonificacao ? "secondary" : "outline"}
             size="sm"
-            onClick={() => setTemBonificacao((v) => !v)}
+            onClick={() => {
+              const nova = !temBonificacao;
+              setTemBonificacao(nova);
+              if (nova && itensBoni.length === 0) setItensBoni([novoItemBoni()]);
+            }}
           >
             {temBonificacao ? "Remover bonificação" : "Adicionar bonificação"}
           </Button>
         </CardHeader>
         {temBonificacao && (
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Peças acordadas</Label>
-              <Input
-                type="number"
-                min={0}
-                value={boniPecas}
-                onChange={(e) => setBoniPecas(e.target.value)}
-                placeholder="Ex.: 16"
-              />
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {itensBoni.map((item) => (
+                <div key={item.key} className="flex items-start gap-2 rounded-lg border bg-card p-3">
+                  <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-[1fr_120px_140px]">
+                    <Combobox
+                      options={produtoOptions}
+                      value={item.sku}
+                      onChange={(sku) => onSkuBoniChange(item.key, sku)}
+                      placeholder="Selecione o produto"
+                      searchPlaceholder="Buscar por SKU ou descrição..."
+                      emptyText="Nenhum produto encontrado."
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.qtd}
+                      onChange={(e) => atualizarItemBoni(item.key, { qtd: Number(e.target.value) || 0 })}
+                      placeholder="Qtd"
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={item.precoBase}
+                      onChange={(e) => atualizarItemBoni(item.key, { precoBase: Number(e.target.value) || 0 })}
+                      placeholder="Preço base"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 text-muted-foreground"
+                    onClick={() => removerItemBoni(item.key)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setItensBoni((prev) => [...prev, novoItemBoni()])}
+              >
+                <Plus data-icon="inline-start" />
+                Adicionar produto
+              </Button>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Faturamento acordado</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min={0}
-                value={boniValor}
-                onChange={(e) => setBoniValor(e.target.value)}
-                placeholder="0,00"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Data a pagar</Label>
-              <Input type="date" value={boniData} onChange={(e) => setBoniData(e.target.value)} />
+
+            <Separator />
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Peças acordadas</p>
+                <p className="text-sm font-semibold tabular-nums">{formatNumber(boniTotais.pecas)} un.</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Faturamento acordado</p>
+                <p className="text-sm font-semibold tabular-nums">{formatBRLPreco(boniTotais.valor)}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Data a pagar</Label>
+                <Input type="date" value={boniData} onChange={(e) => setBoniData(e.target.value)} className="h-8" />
+              </div>
             </div>
           </CardContent>
         )}

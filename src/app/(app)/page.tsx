@@ -11,6 +11,7 @@ import { TicketsTable } from "@/components/tickets-table";
 import { formatBRL, formatNumber } from "@/lib/format";
 import {
   bonifStatus,
+  bonificacaoTotais,
   itemTotais,
   mockDistribuicaoMotivo,
   mockMensal,
@@ -40,10 +41,11 @@ function aggregate() {
     unidadesPerdidas += totais.unidadesPerdidas;
 
     if (ticket.bonificacao) {
-      valorBonificado += ticket.bonificacao.valor;
+      const boniValor = bonificacaoTotais(ticket.bonificacao).valor;
+      valorBonificado += boniValor;
       const status = bonifStatus(ticket.bonificacao);
       if (status && status !== "pago") {
-        valorBonifAberto += ticket.bonificacao.valor;
+        valorBonifAberto += boniValor;
         if (status === "atrasada") bonifAtrasadas += 1;
       }
     }

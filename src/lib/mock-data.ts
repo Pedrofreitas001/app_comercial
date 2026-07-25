@@ -46,14 +46,33 @@ export interface MockItemNegociacao {
   motivo: string | null;
 }
 
-// Bonificação é um acordo sobre o TOTAL do pedido (não por SKU):
-// peças acordadas + faturamento correspondente, com data e status de pagamento.
+// Bonificação é um acordo sobre o TOTAL do pedido, mas composto por produtos
+// específicos escolhidos numa lista (SKU + quantidade + preço base) — peças e
+// faturamento totais são contabilizados a partir desses itens, não digitados
+// à parte.
+export interface BonificacaoItem {
+  sku: string;
+  qtd: number;
+  precoBase: number; // preço unitário usado para valorar este item da bonificação
+}
+
 export interface MockBonificacao {
-  pecas: number;
-  valor: number;
+  itens: BonificacaoItem[];
   dataPagamento: string | null; // dd/MM/yyyy
   paga: boolean;
   observacoes: string | null;
+}
+
+export function bonificacaoTotais(bonificacao: MockBonificacao | null) {
+  if (!bonificacao) return { pecas: 0, valor: 0 };
+  return bonificacao.itens.reduce(
+    (acc, item) => {
+      acc.pecas += item.qtd;
+      acc.valor += item.qtd * item.precoBase;
+      return acc;
+    },
+    { pecas: 0, valor: 0 },
+  );
 }
 
 export interface MockTicket {
@@ -95,7 +114,7 @@ function parseData(data: string) {
 export type BonifStatus = "pago" | "pendente" | "atrasada";
 
 export function bonifStatus(bonificacao: MockBonificacao | null): BonifStatus | null {
-  if (!bonificacao || bonificacao.pecas <= 0) return null;
+  if (!bonificacao || bonificacao.itens.length === 0) return null;
   if (bonificacao.paga) return "pago";
   if (bonificacao.dataPagamento && parseData(bonificacao.dataPagamento) < parseData(MOCK_HOJE)) {
     return "atrasada";
@@ -142,8 +161,10 @@ export function produtoCatalogo(codigo: string) {
 
 // Estoque disponível "agora" para o SKU — é isto que o vendedor vê ao montar
 // a negociação, e o que embasa o apontamento de ruptura no momento do acordo.
+// Usa o valor JÁ NORMALIZADO (bruto - vendido ainda não abatido pelo WMS),
+// nao o bruto do ultimo import - e a foto mais realista do que resta.
 export function estoqueDisponivelDe(sku: string) {
-  return mockEstoque.find((e) => e.sku === sku)?.quantidade ?? 0;
+  return estoqueNormalizadoDe(sku).normalizado;
 }
 
 export function proximoCodigoTicket() {
@@ -164,7 +185,15 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246511",
     observacoes: "Pedido mensal. Cliente pediu prioridade na linha Divine.",
-    bonificacao: { pecas: 16, valor: 485.0, dataPagamento: "15/08/2026", paga: false, observacoes: "Acordado sobre o total do pedido; entrega junto com a proxima NF." },
+    bonificacao: {
+      itens: [
+        { sku: "DC821693", qtd: 12, precoBase: 18.9 },
+        { sku: "CR823055", qtd: 4, precoBase: 64.5 },
+      ],
+      dataPagamento: "15/08/2026",
+      paga: false,
+      observacoes: "Acordado sobre o total do pedido; entrega junto com a proxima NF.",
+    },
     itens: [
       {
         sku: "D82399",
@@ -210,7 +239,12 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246498",
     observacoes: null,
-    bonificacao: { pecas: 6, valor: 252.0, dataPagamento: "24/07/2026", paga: true, observacoes: null },
+    bonificacao: {
+      itens: [{ sku: "RC821174", qtd: 6, precoBase: 42.0 }],
+      dataPagamento: "24/07/2026",
+      paga: true,
+      observacoes: null,
+    },
     itens: [
       {
         sku: "DE821556",
@@ -246,7 +280,12 @@ export const mockTickets: MockTicket[] = [
     status: "em_andamento",
     nf: null,
     observacoes: "Aguardando confirmação de cobertura de estoque da ampola.",
-    bonificacao: { pecas: 10, valor: 199.0, dataPagamento: "20/07/2026", paga: false, observacoes: "Pagamento atrasou por pendencia de estoque." },
+    bonificacao: {
+      itens: [{ sku: "DC821693", qtd: 10, precoBase: 19.9 }],
+      dataPagamento: "20/07/2026",
+      paga: false,
+      observacoes: "Pagamento atrasou por pendencia de estoque.",
+    },
     itens: [
       {
         sku: "D82399",
@@ -344,7 +383,12 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246301",
     observacoes: null,
-    bonificacao: { pecas: 2, valor: 129.0, dataPagamento: "28/07/2026", paga: false, observacoes: null },
+    bonificacao: {
+      itens: [{ sku: "CR823055", qtd: 2, precoBase: 64.5 }],
+      dataPagamento: "28/07/2026",
+      paga: false,
+      observacoes: null,
+    },
     itens: [
       {
         sku: "DC821693",
@@ -390,7 +434,12 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246187",
     observacoes: null,
-    bonificacao: { pecas: 20, valor: 378.0, dataPagamento: "22/07/2026", paga: true, observacoes: null },
+    bonificacao: {
+      itens: [{ sku: "DE821556", qtd: 20, precoBase: 18.9 }],
+      dataPagamento: "22/07/2026",
+      paga: true,
+      observacoes: null,
+    },
     itens: [
       {
         sku: "DE821556",
@@ -450,6 +499,7 @@ export interface BonificacaoRow {
   vendedor: string;
   pecas: number;
   valor: number;
+  itens: BonificacaoItem[];
   dataPagamento: string | null;
   status: BonifStatus;
   observacoes: string | null;
@@ -458,17 +508,21 @@ export interface BonificacaoRow {
 export function listarBonificacoes(): BonificacaoRow[] {
   return mockTickets
     .filter((ticket) => ticket.status !== "cancelada" && ticket.bonificacao)
-    .map((ticket) => ({
-      ticketId: ticket.id,
-      codigo: ticket.codigo,
-      cliente: ticket.cliente,
-      vendedor: ticket.vendedor,
-      pecas: ticket.bonificacao!.pecas,
-      valor: ticket.bonificacao!.valor,
-      dataPagamento: ticket.bonificacao!.dataPagamento,
-      status: bonifStatus(ticket.bonificacao)!,
-      observacoes: ticket.bonificacao!.observacoes,
-    }));
+    .map((ticket) => {
+      const totais = bonificacaoTotais(ticket.bonificacao);
+      return {
+        ticketId: ticket.id,
+        codigo: ticket.codigo,
+        cliente: ticket.cliente,
+        vendedor: ticket.vendedor,
+        pecas: totais.pecas,
+        valor: totais.valor,
+        itens: ticket.bonificacao!.itens,
+        dataPagamento: ticket.bonificacao!.dataPagamento,
+        status: bonifStatus(ticket.bonificacao)!,
+        observacoes: ticket.bonificacao!.observacoes,
+      };
+    });
 }
 
 // Série histórica para o gráfico mensal (negociado vs vendido).
@@ -516,3 +570,45 @@ export const mockEstoque: MockEstoqueRow[] = [
   { sku: "DC821662", descricao: "DIVINE 10 IN 1 LEAVE-IN CONDICIONANTE 200G", categoria: "Finalizador", quantidade: 0, unidade: "UN", vencimentoProximo: null },
   { sku: "0.006", descricao: "SACOLA LUXO TRIPLEX", categoria: "Material de Apoio", quantidade: 1450, unidade: "UN", vencimentoProximo: null },
 ];
+
+// =========================================================================
+// Normalização de estoque: o STRALOG (operador logístico) pode demorar pra
+// dar baixa depois que uma negociação já vendeu o produto — o app monitora
+// isso comparando o que foi vendido desde a última importação com o que o
+// proprio import ainda reporta. Enquanto o WMS não abater, mostramos
+// "aguardando baixa no operador logístico" com a quantidade pendente, e
+// usamos o estoque JÁ NORMALIZADO (bruto - pendente) para apontar ruptura
+// nas próximas negociações — é a foto mais realista do que sobrou.
+// =========================================================================
+// Soma qtdFinal de negociações não canceladas com data >= última importação
+// de estoque — ou seja, vendas que o STRALOG ainda não teve chance de abater.
+export function vendidoDesdeImportacao(sku: string): number {
+  const referencia = parseData(mockEstoqueDataReferencia);
+  let total = 0;
+  for (const ticket of mockTickets) {
+    if (ticket.status === "cancelada" || ticket.status === "rascunho") continue;
+    if (parseData(ticket.data) < referencia) continue;
+    for (const item of ticket.itens) {
+      if (item.sku === sku) total += item.qtdFinal;
+    }
+  }
+  return total;
+}
+
+export interface EstoqueNormalizado {
+  bruto: number;
+  pendente: number;
+  normalizado: number;
+  aguardandoBaixa: boolean;
+}
+
+export function estoqueNormalizadoDe(sku: string): EstoqueNormalizado {
+  const bruto = mockEstoque.find((e) => e.sku === sku)?.quantidade ?? 0;
+  const pendente = vendidoDesdeImportacao(sku);
+  return {
+    bruto,
+    pendente,
+    normalizado: Math.max(bruto - pendente, 0),
+    aguardandoBaixa: pendente > 0,
+  };
+}
