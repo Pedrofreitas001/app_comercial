@@ -281,14 +281,30 @@ export function NovaNegociacaoForm() {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <span>Tabela {formatBRLPreco(produto.preco ?? 0)}</span>
                           <span>STRALOG {formatNumber(norm.bruto)} un.</span>
-                          <span className={norm.aguardandoBaixa ? "font-medium text-warning" : "font-medium text-foreground"}>
+                          <span
+                            className={
+                              norm.emRuptura
+                                ? "font-medium text-destructive"
+                                : norm.aguardandoBaixa
+                                  ? "font-medium text-warning"
+                                  : "font-medium text-foreground"
+                            }
+                          >
                             Provisionado {formatNumber(norm.normalizado)} un.
                           </span>
-                          {norm.aguardandoBaixa && (
-                            <Badge variant="outline" className="bg-warning/10 text-warning">
+                          {norm.emRuptura ? (
+                            <Badge variant="outline" className="bg-destructive/10 text-destructive">
                               <TriangleAlert data-icon="inline-start" />
-                              {formatNumber(norm.pendente)} un. aguardando baixa no STRALOG
+                              Ruptura confirmada — déficit de {formatNumber(norm.deficit)} un., aguardando
+                              reposição no STRALOG
                             </Badge>
+                          ) : (
+                            norm.aguardandoBaixa && (
+                              <Badge variant="outline" className="bg-warning/10 text-warning">
+                                <TriangleAlert data-icon="inline-start" />
+                                {formatNumber(norm.pendente)} un. aguardando baixa no STRALOG
+                              </Badge>
+                            )
                           )}
                         </div>
                       )}

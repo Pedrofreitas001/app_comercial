@@ -1,9 +1,12 @@
-// Tickets/estoque/dashboard ainda são ficticios (validam o design antes do
-// Supabase existir). Clientes e produtos já vêm da base real do cliente —
-// ver src/lib/data/clientes.json e produtos.json (gerados de base_cliente.xlsx
-// e DIM_V1.xlsx).
+// Tickets/dashboard ainda são ficticios (validam o design antes do Supabase
+// existir). Clientes, produtos e estoque já vêm da base real do cliente —
+// ver src/lib/data/*.json (gerados de base_cliente.xlsx, DIM_V1.xlsx e do
+// export STRALOG). O catálogo de produtos é cumulativo: todo SKU que aparece
+// no estoque STRALOG mas não está no DIM_V1 entra como produto "órfão" (ver
+// script de geração) — assim nenhum SKU em estoque fica sem cadastro.
 import clientesData from "@/lib/data/clientes.json";
 import produtosData from "@/lib/data/produtos.json";
+import estoqueData from "@/lib/data/estoque.json";
 
 export interface Cliente {
   codigo: string;
@@ -553,7 +556,7 @@ export const mockProdutos: Produto[] = produtosData as Produto[];
 export interface MockEstoqueRow {
   sku: string;
   descricao: string;
-  categoria: string;
+  categoria: string | null;
   quantidade: number;
   unidade: string;
   vencimentoProximo: string | null; // dd/MM/yyyy do lote que vence antes
@@ -561,15 +564,11 @@ export interface MockEstoqueRow {
 
 export const mockEstoqueDataReferencia = "24/07/2026";
 
-export const mockEstoque: MockEstoqueRow[] = [
-  { sku: "D82399", descricao: "DIVINE POWER DOSE - AMPOLA 13ML", categoria: "Ampola de Tratamento", quantidade: 273, unidade: "UN", vencimentoProximo: "01/10/2027" },
-  { sku: "DC821693", descricao: "DIVINE POWER DOSE CONDITIONING 13ML", categoria: "Ampola de Tratamento", quantidade: 264, unidade: "UN", vencimentoProximo: "30/01/2029" },
-  { sku: "DE821556", descricao: "AMPOLA CONDICIONANTE DEFENSE POWER DOSE 13ML", categoria: "Ampola de Tratamento", quantidade: 310, unidade: "UN", vencimentoProximo: "15/03/2028" },
-  { sku: "CR823055", descricao: "CRONOGRAMA CAPILAR COLOR CONDICIONANTE 3X13ML", categoria: "Kit Tratamento", quantidade: 88, unidade: "UN", vencimentoProximo: "01/05/2028" },
-  { sku: "RC821174", descricao: "MASCARA CAPILAR REVIVAL RECONSTRUTORA 200G", categoria: "Máscara", quantidade: 20, unidade: "UN", vencimentoProximo: "12/11/2027" },
-  { sku: "DC821662", descricao: "DIVINE 10 IN 1 LEAVE-IN CONDICIONANTE 200G", categoria: "Finalizador", quantidade: 0, unidade: "UN", vencimentoProximo: null },
-  { sku: "0.006", descricao: "SACOLA LUXO TRIPLEX", categoria: "Material de Apoio", quantidade: 1450, unidade: "UN", vencimentoProximo: null },
-];
+// Estoque real: agregado da aba "Filtrada" do export STRALOG (status BOM,
+// somado por SKU canônico) — ver src/lib/data/estoque.json. O catálogo de
+// produtos acima já é cumulativo com esse mesmo export (SKUs órfãos do
+// estoque entram no catálogo), então todo SKU aqui tem produto correspondente.
+export const mockEstoque: MockEstoqueRow[] = estoqueData as MockEstoqueRow[];
 
 // =========================================================================
 // Normalização de estoque: o STRALOG (operador logístico) pode demorar pra
@@ -582,6 +581,8 @@ export const mockEstoque: MockEstoqueRow[] = [
 // =========================================================================
 // Soma qtdFinal de negociações não canceladas com data >= última importação
 // de estoque — ou seja, vendas que o STRALOG ainda não teve chance de abater.
+// Canoniza o SKU do item (pode ter sido lançado com um código de entrada)
+// pra não perder venda na contagem por causa do alias.
 export function vendidoDesdeImportacao(sku: string): number {
   const referencia = parseData(mockEstoqueDataReferencia);
   let total = 0;
@@ -589,7 +590,8 @@ export function vendidoDesdeImportacao(sku: string): number {
     if (ticket.status === "cancelada" || ticket.status === "rascunho") continue;
     if (parseData(ticket.data) < referencia) continue;
     for (const item of ticket.itens) {
-      if (item.sku === sku) total += item.qtdFinal;
+      const canonico = produtoCatalogo(item.sku)?.sku ?? item.sku;
+      if (canonico === sku) total += item.qtdFinal;
     }
   }
   return total;
@@ -600,6 +602,12 @@ export interface EstoqueNormalizado {
   pendente: number;
   normalizado: number;
   aguardandoBaixa: boolean;
+  // deficit > 0 significa que ja' provisionamos mais baixa do que o STRALOG
+  // reporta disponivel - nao da' pra abater mais do que existe. Isso e' uma
+  // ruptura confirmada (nao so' "aguardando baixa"): so' resolve com um novo
+  // import de estoque mostrando reposicao.
+  deficit: number;
+  emRuptura: boolean;
 }
 
 export function estoqueNormalizadoDe(sku: string): EstoqueNormalizado {
@@ -610,5 +618,7 @@ export function estoqueNormalizadoDe(sku: string): EstoqueNormalizado {
     pendente,
     normalizado: Math.max(bruto - pendente, 0),
     aguardandoBaixa: pendente > 0,
+    deficit: Math.max(pendente - bruto, 0),
+    emRuptura: pendente > bruto,
   };
 }

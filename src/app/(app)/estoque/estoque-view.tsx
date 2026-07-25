@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -77,22 +77,40 @@ export function EstoqueView() {
                         <Badge variant="outline" className={status.className}>
                           {status.label}
                         </Badge>
-                        {norm.aguardandoBaixa && (
+                        {norm.emRuptura ? (
                           <Tooltip>
                             <TooltipTrigger
                               render={
-                                <Badge variant="outline" className="cursor-help bg-warning/10 text-warning" />
+                                <Badge variant="outline" className="cursor-help bg-destructive/10 text-destructive" />
                               }
                             >
-                              <Clock data-icon="inline-start" />
-                              Aguardando baixa · {formatNumber(norm.pendente)} un.
+                              <TriangleAlert data-icon="inline-start" />
+                              Ruptura · déficit {formatNumber(norm.deficit)} un.
                             </TooltipTrigger>
                             <TooltipContent side="right" className="max-w-64">
-                              {formatNumber(norm.pendente)} un. já negociadas desde a última importação do
-                              STRALOG ainda não foram abatidas pelo operador logístico. O estoque
-                              normalizado já considera essa baixa pendente.
+                              Já provisionamos {formatNumber(norm.pendente)} un. vendidas, {formatNumber(norm.deficit)}{" "}
+                              un. além do que o STRALOG reporta disponível. Não é possível provisionar mais
+                              baixa que isso — só se resolve com um novo import mostrando reposição.
                             </TooltipContent>
                           </Tooltip>
+                        ) : (
+                          norm.aguardandoBaixa && (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Badge variant="outline" className="cursor-help bg-warning/10 text-warning" />
+                                }
+                              >
+                                <Clock data-icon="inline-start" />
+                                Aguardando baixa · {formatNumber(norm.pendente)} un.
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-64">
+                                {formatNumber(norm.pendente)} un. já negociadas desde a última importação do
+                                STRALOG ainda não foram abatidas pelo operador logístico. O estoque
+                                normalizado já considera essa baixa pendente.
+                              </TooltipContent>
+                            </Tooltip>
+                          )
                         )}
                       </div>
                     </TableCell>

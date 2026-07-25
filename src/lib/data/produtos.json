@@ -312,6 +312,18 @@
     "status": "ativo"
   },
   {
+    "sku": "0000.052",
+    "skuEntrada": [
+      "0000.052"
+    ],
+    "descricao": "NECESSAIRE VERNIZ PU E CHAVEIRO BT BANANA",
+    "categoria": null,
+    "linha": null,
+    "marca": null,
+    "preco": null,
+    "status": "ativo"
+  },
+  {
     "sku": "12151",
     "skuEntrada": [
       "12151"

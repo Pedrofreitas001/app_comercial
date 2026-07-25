@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Boxes, CalendarClock, Clock, PackageX, Upload } from "lucide-react";
+import { Boxes, CalendarClock, Clock, TriangleAlert, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/kpi-card";
@@ -10,9 +10,10 @@ import { EstoqueView } from "./estoque-view";
 export default function EstoquePage() {
   const normalizados = mockEstoque.map((row) => estoqueNormalizadoDe(row.sku));
   const totalUnidades = normalizados.reduce((acc, n) => acc + n.normalizado, 0);
-  const skusZerados = normalizados.filter((n) => n.normalizado === 0).length;
-  const aguardandoBaixa = normalizados.filter((n) => n.aguardandoBaixa);
+  const aguardandoBaixa = normalizados.filter((n) => n.aguardandoBaixa && !n.emRuptura);
   const pendenteTotal = aguardandoBaixa.reduce((acc, n) => acc + n.pendente, 0);
+  const emRuptura = normalizados.filter((n) => n.emRuptura);
+  const deficitTotal = emRuptura.reduce((acc, n) => acc + n.deficit, 0);
 
   return (
     <div className="space-y-6">
@@ -51,11 +52,15 @@ export default function EstoquePage() {
           tone={aguardandoBaixa.length > 0 ? "warning" : "default"}
         />
         <KpiCard
-          label="SKUs zerados"
-          value={formatNumber(skusZerados)}
-          hint="considerando o estoque normalizado"
-          icon={PackageX}
-          tone={skusZerados > 0 ? "warning" : "default"}
+          label="Em ruptura"
+          value={formatNumber(emRuptura.length)}
+          hint={
+            emRuptura.length > 0
+              ? `déficit de ${formatNumber(deficitTotal)} un. — aguardando reposição`
+              : "nenhum SKU vendido além do disponível"
+          }
+          icon={TriangleAlert}
+          tone={emRuptura.length > 0 ? "warning" : "default"}
         />
         <KpiCard
           label="Última atualização"
