@@ -1,5 +1,7 @@
-import { Boxes, CalendarClock, PackageX, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { Boxes, CalendarClock, PackageX, TriangleAlert, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/kpi-card";
 import { formatNumber } from "@/lib/format";
 import { mockEstoque, mockEstoqueDataReferencia } from "@/lib/mock-data";
@@ -20,7 +22,13 @@ export default function EstoquePage() {
             Posição sincronizada do armazém — somente leitura, atualizada por importação.
           </p>
         </div>
-        <Badge variant="secondary">Dados de exemplo</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">Dados de exemplo</Badge>
+          <Button nativeButton={false} render={<Link href="/estoque/importar" />}>
+            <Upload data-icon="inline-start" />
+            Importar estoque
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
