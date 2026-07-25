@@ -6,12 +6,22 @@ export type TicketStatus = "rascunho" | "em_andamento" | "concluida" | "cancelad
 export interface MockItemNegociacao {
   sku: string;
   descricao: string;
-  qtdNegociada: number;
-  qtdVendida: number;
-  qtdBonificada: number;
-  estoqueDisponivel: number;
+  precoTabela: number;
   precoNegociado: number;
+  qtdV1: number; // quantidade da negociação preliminar
+  qtdFinal: number; // quantidade final (após ajuste por ruptura/motivo)
+  estoqueDisponivel: number;
   motivo: string | null;
+}
+
+// Bonificação é um acordo sobre o TOTAL do pedido (não por SKU):
+// peças acordadas + faturamento correspondente, com data e status de pagamento.
+export interface MockBonificacao {
+  pecas: number;
+  valor: number;
+  dataPagamento: string | null; // dd/MM/yyyy
+  paga: boolean;
+  observacoes: string | null;
 }
 
 export interface MockTicket {
@@ -26,35 +36,86 @@ export interface MockTicket {
   status: TicketStatus;
   nf: string | null;
   observacoes: string | null;
+  bonificacao: MockBonificacao | null;
   itens: MockItemNegociacao[];
 }
 
 export const MOTIVO_SEM_ESTOQUE = "Sem estoque";
 
+// Lista fixa de motivos (espec. MVP1, seção 13) — espelha a tabela motivos_perda.
+export const MOTIVOS = [
+  MOTIVO_SEM_ESTOQUE,
+  "Substituição de SKU",
+  "Cliente desistiu",
+  "Preço",
+  "Campanha encerrada",
+  "Outro",
+] as const;
+
+// "Hoje" fixo dos dados de exemplo, para os status de bonificação serem estáveis.
+export const MOCK_HOJE = "25/07/2026";
+
+function parseData(data: string) {
+  const [dia, mes, ano] = data.split("/").map(Number);
+  return new Date(ano, mes - 1, dia);
+}
+
+export type BonifStatus = "pago" | "pendente" | "atrasada";
+
+export function bonifStatus(bonificacao: MockBonificacao | null): BonifStatus | null {
+  if (!bonificacao || bonificacao.pecas <= 0) return null;
+  if (bonificacao.paga) return "pago";
+  if (bonificacao.dataPagamento && parseData(bonificacao.dataPagamento) < parseData(MOCK_HOJE)) {
+    return "atrasada";
+  }
+  return "pendente";
+}
+
 export function itemTotais(item: MockItemNegociacao) {
-  const totalNegociado = item.qtdNegociada * item.precoNegociado;
-  const totalVendido = item.qtdVendida * item.precoNegociado;
+  const totalV1 = item.qtdV1 * item.precoNegociado;
+  const totalFinal = item.qtdFinal * item.precoNegociado;
   const unidadesPerdidas =
-    item.motivo === MOTIVO_SEM_ESTOQUE ? Math.max(item.qtdNegociada - item.qtdVendida, 0) : 0;
+    item.motivo === MOTIVO_SEM_ESTOQUE ? Math.max(item.qtdV1 - item.qtdFinal, 0) : 0;
   const valorPerdido = unidadesPerdidas * item.precoNegociado;
-  return { totalNegociado, totalVendido, unidadesPerdidas, valorPerdido };
+  const descontoPct =
+    item.precoTabela > 0 ? Math.round((1 - item.precoNegociado / item.precoTabela) * 100) : 0;
+  return { totalV1, totalFinal, unidadesPerdidas, valorPerdido, descontoPct };
 }
 
 export function ticketTotais(ticket: MockTicket) {
   return ticket.itens.reduce(
     (acc, item) => {
       const t = itemTotais(item);
-      acc.totalNegociado += t.totalNegociado;
-      acc.totalVendido += t.totalVendido;
+      acc.totalV1 += t.totalV1;
+      acc.totalFinal += t.totalFinal;
       acc.unidadesPerdidas += t.unidadesPerdidas;
       acc.valorPerdido += t.valorPerdido;
       return acc;
     },
-    { totalNegociado: 0, totalVendido: 0, unidadesPerdidas: 0, valorPerdido: 0 },
+    { totalV1: 0, totalFinal: 0, unidadesPerdidas: 0, valorPerdido: 0 },
   );
 }
 
 export const mockVendedores = ["Andre Benah", "Camila Rocha", "Paulo Menezes"];
+
+// Foto do catálogo STRALOG usada nos itens de exemplo. Cada item de negociação
+// guarda o catálogo/data em que o SKU foi escolhido pelo vendedor.
+export const mockCatalogoRef = "Catálogo STRALOG · 24/07/2026";
+
+export function produtoCatalogo(sku: string) {
+  return mockProdutos.find((p) => p.sku === sku) ?? null;
+}
+
+// Estoque disponível "agora" para o SKU — é isto que o vendedor vê ao montar
+// a negociação, e o que embasa o apontamento de ruptura no momento do acordo.
+export function estoqueDisponivelDe(sku: string) {
+  return mockEstoque.find((e) => e.sku === sku)?.quantidade ?? 0;
+}
+
+export function proximoCodigoTicket() {
+  const proximo = mockTickets.length + 1;
+  return `NEG-2026-${String(148 + proximo).padStart(4, "0")}`;
+}
 
 export const mockTickets: MockTicket[] = [
   {
@@ -69,10 +130,38 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246511",
     observacoes: "Pedido mensal. Cliente pediu prioridade na linha Divine.",
+    bonificacao: { pecas: 16, valor: 485.0, dataPagamento: "15/08/2026", paga: false, observacoes: "Acordado sobre o total do pedido; entrega junto com a proxima NF." },
     itens: [
-      { sku: "D82399", descricao: "DIVINE POWER DOSE - AMPOLA 13ML", qtdNegociada: 240, qtdVendida: 180, qtdBonificada: 12, estoqueDisponivel: 180, precoNegociado: 17.5, motivo: MOTIVO_SEM_ESTOQUE },
-      { sku: "DC82169", descricao: "DIVINE POWER DOSE CONDITIONING 13ML", qtdNegociada: 120, qtdVendida: 120, qtdBonificada: 0, estoqueDisponivel: 264, precoNegociado: 18.9, motivo: null },
-      { sku: "C82071", descricao: "CRONOGRAMA CAPILAR COLOR", qtdNegociada: 36, qtdVendida: 36, qtdBonificada: 4, estoqueDisponivel: 88, precoNegociado: 59.9, motivo: null },
+      {
+        sku: "D82399",
+        descricao: "DIVINE POWER DOSE - AMPOLA 13ML",
+        precoTabela: 18.9,
+        precoNegociado: 17.5,
+        qtdV1: 240,
+        qtdFinal: 180,
+        estoqueDisponivel: 180,
+        motivo: MOTIVO_SEM_ESTOQUE,
+      },
+      {
+        sku: "DC82169",
+        descricao: "DIVINE POWER DOSE CONDITIONING 13ML",
+        precoTabela: 19.9,
+        precoNegociado: 18.9,
+        qtdV1: 120,
+        qtdFinal: 120,
+        estoqueDisponivel: 264,
+        motivo: null,
+      },
+      {
+        sku: "C82071",
+        descricao: "CRONOGRAMA CAPILAR COLOR",
+        precoTabela: 64.5,
+        precoNegociado: 59.9,
+        qtdV1: 36,
+        qtdFinal: 36,
+        estoqueDisponivel: 88,
+        motivo: null,
+      },
     ],
   },
   {
@@ -87,9 +176,28 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246498",
     observacoes: null,
+    bonificacao: { pecas: 6, valor: 252.0, dataPagamento: "24/07/2026", paga: true, observacoes: null },
     itens: [
-      { sku: "A55012", descricao: "AMPOLA DE TRATAMENTO INTENSIVO", qtdNegociada: 96, qtdVendida: 96, qtdBonificada: 0, estoqueDisponivel: 310, precoNegociado: 19.9, motivo: null },
-      { sku: "B90044", descricao: "MASCARA RECONSTRUCAO PROFUNDA", qtdNegociada: 48, qtdVendida: 48, qtdBonificada: 6, estoqueDisponivel: 150, precoNegociado: 39.0, motivo: null },
+      {
+        sku: "A55012",
+        descricao: "AMPOLA DE TRATAMENTO INTENSIVO",
+        precoTabela: 21.3,
+        precoNegociado: 19.9,
+        qtdV1: 96,
+        qtdFinal: 96,
+        estoqueDisponivel: 310,
+        motivo: null,
+      },
+      {
+        sku: "B90044",
+        descricao: "MASCARA RECONSTRUCAO PROFUNDA",
+        precoTabela: 42.0,
+        precoNegociado: 39.0,
+        qtdV1: 48,
+        qtdFinal: 48,
+        estoqueDisponivel: 150,
+        motivo: null,
+      },
     ],
   },
   {
@@ -104,9 +212,28 @@ export const mockTickets: MockTicket[] = [
     status: "em_andamento",
     nf: null,
     observacoes: "Aguardando confirmação de cobertura de estoque da ampola.",
+    bonificacao: { pecas: 10, valor: 199.0, dataPagamento: "20/07/2026", paga: false, observacoes: "Pagamento atrasou por pendencia de estoque." },
     itens: [
-      { sku: "D82399", descricao: "DIVINE POWER DOSE - AMPOLA 13ML", qtdNegociada: 300, qtdVendida: 200, qtdBonificada: 0, estoqueDisponivel: 200, precoNegociado: 16.8, motivo: MOTIVO_SEM_ESTOQUE },
-      { sku: "DC82169", descricao: "DIVINE POWER DOSE CONDITIONING 13ML", qtdNegociada: 150, qtdVendida: 150, qtdBonificada: 10, estoqueDisponivel: 264, precoNegociado: 17.9, motivo: null },
+      {
+        sku: "D82399",
+        descricao: "DIVINE POWER DOSE - AMPOLA 13ML",
+        precoTabela: 18.9,
+        precoNegociado: 16.8,
+        qtdV1: 300,
+        qtdFinal: 200,
+        estoqueDisponivel: 200,
+        motivo: MOTIVO_SEM_ESTOQUE,
+      },
+      {
+        sku: "DC82169",
+        descricao: "DIVINE POWER DOSE CONDITIONING 13ML",
+        precoTabela: 19.9,
+        precoNegociado: 17.9,
+        qtdV1: 150,
+        qtdFinal: 150,
+        estoqueDisponivel: 264,
+        motivo: null,
+      },
     ],
   },
   {
@@ -121,9 +248,28 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246402",
     observacoes: null,
+    bonificacao: null,
     itens: [
-      { sku: "B90044", descricao: "MASCARA RECONSTRUCAO PROFUNDA", qtdNegociada: 24, qtdVendida: 20, qtdBonificada: 0, estoqueDisponivel: 20, precoNegociado: 42.0, motivo: MOTIVO_SEM_ESTOQUE },
-      { sku: "A55012", descricao: "AMPOLA DE TRATAMENTO INTENSIVO", qtdNegociada: 48, qtdVendida: 48, qtdBonificada: 0, estoqueDisponivel: 310, precoNegociado: 21.3, motivo: null },
+      {
+        sku: "B90044",
+        descricao: "MASCARA RECONSTRUCAO PROFUNDA",
+        precoTabela: 42.0,
+        precoNegociado: 42.0,
+        qtdV1: 24,
+        qtdFinal: 20,
+        estoqueDisponivel: 20,
+        motivo: MOTIVO_SEM_ESTOQUE,
+      },
+      {
+        sku: "A55012",
+        descricao: "AMPOLA DE TRATAMENTO INTENSIVO",
+        precoTabela: 21.3,
+        precoNegociado: 21.3,
+        qtdV1: 48,
+        qtdFinal: 48,
+        estoqueDisponivel: 310,
+        motivo: null,
+      },
     ],
   },
   {
@@ -138,8 +284,18 @@ export const mockTickets: MockTicket[] = [
     status: "rascunho",
     nf: null,
     observacoes: "Cliente revendo mix antes de fechar.",
+    bonificacao: null,
     itens: [
-      { sku: "C82071", descricao: "CRONOGRAMA CAPILAR COLOR", qtdNegociada: 12, qtdVendida: 12, qtdBonificada: 0, estoqueDisponivel: 88, precoNegociado: 64.5, motivo: null },
+      {
+        sku: "C82071",
+        descricao: "CRONOGRAMA CAPILAR COLOR",
+        precoTabela: 64.5,
+        precoNegociado: 64.5,
+        qtdV1: 12,
+        qtdFinal: 12,
+        estoqueDisponivel: 88,
+        motivo: null,
+      },
     ],
   },
   {
@@ -154,10 +310,38 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246301",
     observacoes: null,
+    bonificacao: { pecas: 2, valor: 129.0, dataPagamento: "28/07/2026", paga: false, observacoes: null },
     itens: [
-      { sku: "DC82169", descricao: "DIVINE POWER DOSE CONDITIONING 13ML", qtdNegociada: 200, qtdVendida: 150, qtdBonificada: 0, estoqueDisponivel: 150, precoNegociado: 18.5, motivo: MOTIVO_SEM_ESTOQUE },
-      { sku: "D82399", descricao: "DIVINE POWER DOSE - AMPOLA 13ML", qtdNegociada: 100, qtdVendida: 80, qtdBonificada: 0, estoqueDisponivel: 320, precoNegociado: 17.9, motivo: "Preço" },
-      { sku: "C82071", descricao: "CRONOGRAMA CAPILAR COLOR", qtdNegociada: 24, qtdVendida: 24, qtdBonificada: 2, estoqueDisponivel: 90, precoNegociado: 61.0, motivo: null },
+      {
+        sku: "DC82169",
+        descricao: "DIVINE POWER DOSE CONDITIONING 13ML",
+        precoTabela: 19.9,
+        precoNegociado: 18.5,
+        qtdV1: 200,
+        qtdFinal: 150,
+        estoqueDisponivel: 150,
+        motivo: MOTIVO_SEM_ESTOQUE,
+      },
+      {
+        sku: "D82399",
+        descricao: "DIVINE POWER DOSE - AMPOLA 13ML",
+        precoTabela: 18.9,
+        precoNegociado: 17.9,
+        qtdV1: 100,
+        qtdFinal: 80,
+        estoqueDisponivel: 320,
+        motivo: "Preço",
+      },
+      {
+        sku: "C82071",
+        descricao: "CRONOGRAMA CAPILAR COLOR",
+        precoTabela: 64.5,
+        precoNegociado: 61.0,
+        qtdV1: 24,
+        qtdFinal: 24,
+        estoqueDisponivel: 90,
+        motivo: null,
+      },
     ],
   },
   {
@@ -172,9 +356,28 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246187",
     observacoes: null,
+    bonificacao: { pecas: 20, valor: 378.0, dataPagamento: "22/07/2026", paga: true, observacoes: null },
     itens: [
-      { sku: "A55012", descricao: "AMPOLA DE TRATAMENTO INTENSIVO", qtdNegociada: 200, qtdVendida: 200, qtdBonificada: 20, estoqueDisponivel: 400, precoNegociado: 18.9, motivo: null },
-      { sku: "B90044", descricao: "MASCARA RECONSTRUCAO PROFUNDA", qtdNegociada: 60, qtdVendida: 30, qtdBonificada: 0, estoqueDisponivel: 30, precoNegociado: 38.0, motivo: MOTIVO_SEM_ESTOQUE },
+      {
+        sku: "A55012",
+        descricao: "AMPOLA DE TRATAMENTO INTENSIVO",
+        precoTabela: 21.3,
+        precoNegociado: 18.9,
+        qtdV1: 200,
+        qtdFinal: 200,
+        estoqueDisponivel: 400,
+        motivo: null,
+      },
+      {
+        sku: "B90044",
+        descricao: "MASCARA RECONSTRUCAO PROFUNDA",
+        precoTabela: 42.0,
+        precoNegociado: 38.0,
+        qtdV1: 60,
+        qtdFinal: 30,
+        estoqueDisponivel: 30,
+        motivo: MOTIVO_SEM_ESTOQUE,
+      },
     ],
   },
   {
@@ -189,11 +392,50 @@ export const mockTickets: MockTicket[] = [
     status: "cancelada",
     nf: null,
     observacoes: "Cliente desistiu após revisão de orçamento.",
+    bonificacao: null,
     itens: [
-      { sku: "D82399", descricao: "DIVINE POWER DOSE - AMPOLA 13ML", qtdNegociada: 60, qtdVendida: 0, qtdBonificada: 0, estoqueDisponivel: 320, precoNegociado: 18.9, motivo: "Cliente desistiu" },
+      {
+        sku: "D82399",
+        descricao: "DIVINE POWER DOSE - AMPOLA 13ML",
+        precoTabela: 18.9,
+        precoNegociado: 18.9,
+        qtdV1: 60,
+        qtdFinal: 0,
+        estoqueDisponivel: 320,
+        motivo: "Cliente desistiu",
+      },
     ],
   },
 ];
+
+// Linhas de bonificação (uma por pedido) para a tela de administração.
+export interface BonificacaoRow {
+  ticketId: string;
+  codigo: string;
+  cliente: string;
+  vendedor: string;
+  pecas: number;
+  valor: number;
+  dataPagamento: string | null;
+  status: BonifStatus;
+  observacoes: string | null;
+}
+
+export function listarBonificacoes(): BonificacaoRow[] {
+  return mockTickets
+    .filter((ticket) => ticket.status !== "cancelada" && ticket.bonificacao)
+    .map((ticket) => ({
+      ticketId: ticket.id,
+      codigo: ticket.codigo,
+      cliente: ticket.cliente,
+      vendedor: ticket.vendedor,
+      pecas: ticket.bonificacao!.pecas,
+      valor: ticket.bonificacao!.valor,
+      dataPagamento: ticket.bonificacao!.dataPagamento,
+      status: bonifStatus(ticket.bonificacao)!,
+      observacoes: ticket.bonificacao!.observacoes,
+    }));
+}
 
 // Série histórica para o gráfico mensal (negociado vs vendido).
 export const mockMensal = [

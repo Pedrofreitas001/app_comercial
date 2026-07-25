@@ -1,4 +1,4 @@
-import { ArrowRight, CircleDollarSign, Handshake, PackageX, ShoppingCart, Users } from "lucide-react";
+import { ArrowRight, Gift, Handshake, PackageX, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { RankedList } from "@/components/dashboard/ranked-list";
 import { TicketsTable } from "@/components/tickets-table";
 import { formatBRL, formatNumber } from "@/lib/format";
 import {
+  bonifStatus,
   itemTotais,
   mockDistribuicaoMotivo,
   mockMensal,
@@ -19,10 +20,13 @@ import {
 
 function aggregate() {
   const ativos = mockTickets.filter((t) => t.status !== "cancelada");
-  let totalNegociado = 0;
-  let totalVendido = 0;
+  let totalV1 = 0;
+  let totalFinal = 0;
   let valorPerdido = 0;
   let unidadesPerdidas = 0;
+  let valorBonificado = 0;
+  let valorBonifAberto = 0;
+  let bonifAtrasadas = 0;
 
   const porSku = new Map<string, { label: string; valor: number; perdido: number }>();
   const porCliente = new Map<string, { label: string; valor: number; perdido: number }>();
@@ -30,25 +34,34 @@ function aggregate() {
 
   for (const ticket of ativos) {
     const totais = ticketTotais(ticket);
-    totalNegociado += totais.totalNegociado;
-    totalVendido += totais.totalVendido;
+    totalV1 += totais.totalV1;
+    totalFinal += totais.totalFinal;
     valorPerdido += totais.valorPerdido;
     unidadesPerdidas += totais.unidadesPerdidas;
 
+    if (ticket.bonificacao) {
+      valorBonificado += ticket.bonificacao.valor;
+      const status = bonifStatus(ticket.bonificacao);
+      if (status && status !== "pago") {
+        valorBonifAberto += ticket.bonificacao.valor;
+        if (status === "atrasada") bonifAtrasadas += 1;
+      }
+    }
+
     const cliente = porCliente.get(ticket.cliente) ?? { label: ticket.cliente, valor: 0, perdido: 0 };
-    cliente.valor += totais.totalVendido;
+    cliente.valor += totais.totalFinal;
     cliente.perdido += totais.valorPerdido;
     porCliente.set(ticket.cliente, cliente);
 
     const vendedor = porVendedor.get(ticket.vendedor) ?? { label: ticket.vendedor, valor: 0, perdido: 0 };
-    vendedor.valor += totais.totalVendido;
+    vendedor.valor += totais.totalFinal;
     vendedor.perdido += totais.valorPerdido;
     porVendedor.set(ticket.vendedor, vendedor);
 
     for (const item of ticket.itens) {
       const t = itemTotais(item);
       const sku = porSku.get(item.sku) ?? { label: item.descricao, valor: 0, perdido: 0 };
-      sku.valor += t.totalVendido;
+      sku.valor += t.totalFinal;
       sku.perdido += t.valorPerdido;
       porSku.set(item.sku, sku);
     }
@@ -58,10 +71,13 @@ function aggregate() {
     [...map.values()].sort((a, b) => b.valor - a.valor).slice(0, 5);
 
   return {
-    totalNegociado,
-    totalVendido,
+    totalV1,
+    totalFinal,
     valorPerdido,
     unidadesPerdidas,
+    valorBonificado,
+    valorBonifAberto,
+    bonifAtrasadas,
     negociacoes: ativos.length,
     clientes: new Set(ativos.map((t) => t.clienteCodigo)).size,
     skusAfetados: new Set(
@@ -75,11 +91,11 @@ function aggregate() {
 
 export default function DashboardPage() {
   const agg = aggregate();
-  const conversao = agg.totalNegociado > 0 ? Math.round((agg.totalVendido / agg.totalNegociado) * 100) : 0;
+  const conversao = agg.totalV1 > 0 ? Math.round((agg.totalFinal / agg.totalV1) * 100) : 0;
   const ultimas = mockTickets.slice(0, 5);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Visão comercial</h1>
@@ -90,23 +106,30 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Total negociado"
-          value={formatBRL(agg.totalNegociado)}
-          hint={`${agg.negociacoes} negociações no período`}
+          label="Negociação preliminar"
+          value={formatBRL(agg.totalV1)}
+          hint={`${agg.negociacoes} negociações · ${agg.clientes} clientes`}
           icon={Handshake}
         />
         <KpiCard
-          label="Total vendido"
-          value={formatBRL(agg.totalVendido)}
-          hint={`${conversao}% do negociado`}
+          label="Negociação final"
+          value={formatBRL(agg.totalFinal)}
+          hint={`${conversao}% do preliminar`}
           icon={ShoppingCart}
           tone="success"
         />
         <KpiCard
-          label="Clientes atendidos"
-          value={formatNumber(agg.clientes)}
-          hint="clientes distintos no período"
-          icon={Users}
+          label="Bonificação acordada"
+          value={formatBRL(agg.valorBonificado)}
+          hint={
+            agg.valorBonifAberto > 0
+              ? `${formatBRL(agg.valorBonifAberto)} a pagar${
+                  agg.bonifAtrasadas > 0 ? ` · ${agg.bonifAtrasadas} atrasada(s)` : ""
+                }`
+              : "tudo pago"
+          }
+          icon={Gift}
+          tone={agg.bonifAtrasadas > 0 ? "warning" : "default"}
         />
         <KpiCard
           label="Demanda perdida"

@@ -21,7 +21,8 @@ export function TicketsTable({ tickets }: { tickets: MockTicket[] }) {
           <TableHead>Cliente</TableHead>
           <TableHead>Vendedor</TableHead>
           <TableHead>Data</TableHead>
-          <TableHead className="text-right">Total pedido</TableHead>
+          <TableHead className="text-right">Preliminar</TableHead>
+          <TableHead className="text-right">Final</TableHead>
           <TableHead className="text-right">Perdido</TableHead>
           <TableHead>NF</TableHead>
           <TableHead>Status</TableHead>
@@ -43,7 +44,12 @@ export function TicketsTable({ tickets }: { tickets: MockTicket[] }) {
               <TableCell className="max-w-[260px] truncate font-medium">{ticket.cliente}</TableCell>
               <TableCell className="text-muted-foreground">{ticket.vendedor}</TableCell>
               <TableCell className="text-muted-foreground">{ticket.data}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatBRL(totais.totalVendido)}</TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {formatBRL(totais.totalV1)}
+              </TableCell>
+              <TableCell className="text-right font-medium tabular-nums">
+                {formatBRL(totais.totalFinal)}
+              </TableCell>
               <TableCell className="text-right tabular-nums text-muted-foreground">
                 {totais.valorPerdido > 0 ? formatBRL(totais.valorPerdido) : "—"}
               </TableCell>

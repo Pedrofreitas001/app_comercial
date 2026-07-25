@@ -45,13 +45,13 @@ export function MonthlyChart({
           }}
           formatter={(value, name) => [
             formatBRL(Number(value)),
-            name === "negociado" ? "Negociado" : "Vendido",
+            name === "negociado" ? "Preliminar" : "Final",
           ]}
         />
         <Legend
           formatter={(value: string) => (
             <span style={{ color: "var(--muted-foreground)", fontSize: 12 }}>
-              {value === "negociado" ? "Negociado" : "Vendido"}
+              {value === "negociado" ? "Preliminar" : "Final"}
             </span>
           )}
         />

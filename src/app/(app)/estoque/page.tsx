@@ -12,7 +12,7 @@ export default function EstoquePage() {
   const skusZerados = mockEstoque.filter((row) => row.quantidade === 0).length;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Estoque</h1>

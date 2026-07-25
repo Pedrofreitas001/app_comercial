@@ -88,6 +88,35 @@ create table produtos (
 create index idx_produtos_sku_entrada on produtos(sku_entrada);
 
 -- =========================================================================
+-- precos_tabela (base de preco de tabela, versionada)
+-- Para o catalogo de SKUs (origem STRALOG/DIM) os precos sao inseridos e
+-- versionados: alterar preco cria uma nova versao com vigencia, mantendo o
+-- historico. O preco vigente de um SKU e a versao com vigencia_fim nula.
+-- O item da negociacao continua guardando SEU proprio snapshot
+-- (preco_tabela/preco_negociado) - a foto do momento negociado nao muda
+-- quando a tabela e reajustada depois.
+-- =========================================================================
+create table precos_tabela (
+  id uuid primary key default gen_random_uuid(),
+  produto_id uuid not null references produtos(id),
+  preco numeric(12,2) not null check (preco >= 0),
+  versao integer not null default 1,
+  vigencia_inicio date not null default current_date,
+  vigencia_fim date,
+  criado_por uuid references usuarios(id),
+  created_at timestamptz not null default now(),
+  unique (produto_id, versao)
+);
+create index idx_precos_tabela_vigente on precos_tabela(produto_id) where vigencia_fim is null;
+
+create view v_preco_tabela_vigente with (security_invoker = true) as
+select distinct on (produto_id)
+  produto_id, preco, versao, vigencia_inicio
+from precos_tabela
+where vigencia_fim is null
+order by produto_id, versao desc;
+
+-- =========================================================================
 -- import_batches (auditoria de cada upload manual)
 -- =========================================================================
 create type import_tipo as enum ('estoque', 'clientes', 'produtos');
@@ -201,17 +230,27 @@ create table itens_negociacao (
   id uuid primary key default gen_random_uuid(),
   negociacao_id uuid not null references negociacoes(id) on delete cascade,
   produto_id uuid not null references produtos(id),
-  qtd_negociada numeric not null check (qtd_negociada >= 0),
-  qtd_vendida numeric not null check (qtd_vendida >= 0),
-  -- subconjunto de qtd_vendida dado sem custo (bonificacao), mesmo SKU/linha
+  -- V1 = acordo original; final = o que ficou depois de ajuste por ruptura/motivo.
+  qtd_negociada_v1 numeric not null check (qtd_negociada_v1 >= 0),
+  qtd_final numeric not null check (qtd_final >= 0),
+  -- subconjunto de qtd_final dado sem custo (bonificacao), mesmo SKU/linha
   qtd_bonificada numeric not null default 0 check (qtd_bonificada >= 0),
   -- snapshot do estoque no momento em que o item foi adicionado a negociacao
   estoque_disponivel numeric not null default 0,
+  -- data da foto do catalogo STRALOG de onde o vendedor escolheu o SKU
+  catalogo_data date,
   -- input manual do vendedor por item, pre-preenchido do catalogo quando existir
   preco_negociado numeric(12,2) not null check (preco_negociado >= 0),
+  -- snapshot do preco de catalogo no momento da negociacao (para calcular desconto)
+  preco_tabela numeric(12,2),
   motivo_codigo text references motivos_perda(codigo),
+  -- Administracao da bonificacao acordada no item:
+  -- preco unitario usado para valorar a bonificacao (nulo = usa preco_negociado)
+  preco_base_bonificacao numeric(12,2),
   -- data prevista de pagamento/entrega da bonificacao, por item
   data_pagamento_bonificacao date,
+  -- marcada como paga/entregue pela administracao comercial
+  bonificacao_paga boolean not null default false,
   observacoes text,
   -- Regra de negocio confirmada: so conta como demanda/valor perdido quando
   -- o motivo for especificamente "sem_estoque". Outros motivos (substituicao,
@@ -219,21 +258,29 @@ create table itens_negociacao (
   -- item, mas nao entram na metrica oficial de ruptura.
   demanda_perdida numeric generated always as (
     case when motivo_codigo = 'sem_estoque'
-      then greatest(qtd_negociada - qtd_vendida, 0)
+      then greatest(qtd_negociada_v1 - qtd_final, 0)
       else 0
     end
   ) stored,
   valor_perdido numeric generated always as (
     case when motivo_codigo = 'sem_estoque'
-      then greatest(qtd_negociada - qtd_vendida, 0) * preco_negociado
+      then greatest(qtd_negociada_v1 - qtd_final, 0) * preco_negociado
       else 0
+    end
+  ) stored,
+  -- desconto calculado automaticamente a partir do preco de tabela snapshotado
+  desconto_pct numeric generated always as (
+    case when preco_tabela is not null and preco_tabela > 0
+      then round((1 - preco_negociado / preco_tabela) * 100, 2)
+      else null
     end
   ) stored,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint chk_bonificada_leq_vendida check (qtd_bonificada <= qtd_vendida),
-  constraint chk_motivo_quando_deficit check (
-    (qtd_negociada - qtd_vendida) <= 0 or motivo_codigo is not null
+  constraint chk_bonificada_leq_final check (qtd_bonificada <= qtd_final),
+  -- divergencia entre V1 e final exige motivo justificando
+  constraint chk_motivo_quando_divergencia check (
+    qtd_negociada_v1 = qtd_final or motivo_codigo is not null
   )
 );
 create index idx_itens_negociacao on itens_negociacao(negociacao_id);
@@ -282,14 +329,19 @@ select
   p.categoria,
   p.marca,
   p.linha,
-  i.qtd_negociada,
-  i.qtd_vendida,
+  i.qtd_negociada_v1,
+  i.qtd_final,
   i.qtd_bonificada,
   i.estoque_disponivel,
+  i.catalogo_data,
   i.preco_negociado,
+  i.preco_tabela,
+  i.desconto_pct,
   i.motivo_codigo,
   mp.label as motivo_label,
+  i.preco_base_bonificacao,
   i.data_pagamento_bonificacao,
+  i.bonificacao_paga,
   i.demanda_perdida,
   i.valor_perdido,
   i.observacoes,

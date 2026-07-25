@@ -44,7 +44,7 @@ export function NegociacoesView() {
       (acc, ticket) => {
         if (ticket.status === "cancelada") return acc;
         const totais = ticketTotais(ticket);
-        acc.vendido += totais.totalVendido;
+        acc.vendido += totais.totalFinal;
         acc.perdido += totais.valorPerdido;
         return acc;
       },

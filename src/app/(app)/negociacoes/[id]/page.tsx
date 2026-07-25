@@ -5,15 +5,35 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KpiCard } from "@/components/kpi-card";
 import { NegociacaoStatusBadge } from "@/components/negociacao-status-badge";
-import { formatBRL, formatNumber } from "@/lib/format";
-import { itemTotais, mockTickets, ticketTotais } from "@/lib/mock-data";
+import { SkuTooltip } from "@/components/sku-tooltip";
+import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
+import { bonifStatus, itemTotais, mockCatalogoRef, mockTickets, ticketTotais } from "@/lib/mock-data";
 import { NfForm } from "./nf-form";
+import { BonificacaoControl } from "./bonificacao-control";
 
 export function generateStaticParams() {
   return mockTickets.map((ticket) => ({ id: ticket.id }));
+}
+
+function Campo({
+  label,
+  children,
+  destaque = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  destaque?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className={destaque ? "text-sm font-semibold tabular-nums" : "text-sm font-medium tabular-nums"}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 export default async function NegociacaoDetalhePage({
@@ -26,14 +46,10 @@ export default async function NegociacaoDetalhePage({
   if (!ticket) notFound();
 
   const totais = ticketTotais(ticket);
-  const bonificadas = ticket.itens.reduce((acc, item) => acc + item.qtdBonificada, 0);
-  const valorBonificado = ticket.itens.reduce(
-    (acc, item) => acc + item.qtdBonificada * item.precoNegociado,
-    0,
-  );
+  const statusBoni = bonifStatus(ticket.bonificacao);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <Button
@@ -58,13 +74,18 @@ export default async function NegociacaoDetalhePage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Total negociado" value={formatBRL(totais.totalNegociado)} icon={Handshake} />
         <KpiCard
-          label="Total do pedido"
-          value={formatBRL(totais.totalVendido)}
+          label="Negociação preliminar"
+          value={formatBRL(totais.totalV1)}
+          hint={`${ticket.itens.length} itens no acordo original`}
+          icon={Handshake}
+        />
+        <KpiCard
+          label="Negociação final"
+          value={formatBRL(totais.totalFinal)}
           hint={
-            totais.totalNegociado > 0
-              ? `${Math.round((totais.totalVendido / totais.totalNegociado) * 100)}% do negociado`
+            totais.totalV1 > 0
+              ? `${Math.round((totais.totalFinal / totais.totalV1) * 100)}% do preliminar`
               : undefined
           }
           icon={ShoppingCart}
@@ -73,150 +94,177 @@ export default async function NegociacaoDetalhePage({
         <KpiCard
           label="Perdido por ruptura"
           value={totais.valorPerdido > 0 ? formatBRL(totais.valorPerdido) : "—"}
-          hint={totais.unidadesPerdidas > 0 ? `${formatNumber(totais.unidadesPerdidas)} unidades` : "sem ruptura neste pedido"}
+          hint={
+            totais.unidadesPerdidas > 0
+              ? `${formatNumber(totais.unidadesPerdidas)} unidades`
+              : "sem ruptura neste pedido"
+          }
           icon={PackageX}
           tone={totais.valorPerdido > 0 ? "warning" : "default"}
         />
         <KpiCard
-          label="Bonificação"
-          value={bonificadas > 0 ? `${formatNumber(bonificadas)} un.` : "—"}
-          hint={bonificadas > 0 ? `${formatBRL(valorBonificado)} em produto bonificado` : "sem bonificação"}
+          label="Bonificação do pedido"
+          value={ticket.bonificacao ? formatBRL(ticket.bonificacao.valor) : "—"}
+          hint={
+            ticket.bonificacao
+              ? `${formatNumber(ticket.bonificacao.pecas)} peças · ${
+                  statusBoni === "pago" ? "paga" : statusBoni === "atrasada" ? "atrasada" : "pendente"
+                }`
+              : "sem bonificação"
+          }
           icon={Gift}
+          tone={statusBoni === "atrasada" ? "warning" : "default"}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Itens acordados</CardTitle>
+          <CardDescription>
+            A negociação preliminar é o acordo original; se houver ruptura, a quantidade final
+            registra o ajuste e o motivo justifica a diferença. Passe o mouse no SKU para ver a
+            foto do catálogo ({mockCatalogoRef}).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {ticket.itens.map((item) => {
+            const t = itemTotais(item);
+            const divergencia = item.qtdV1 !== item.qtdFinal;
+            return (
+              <div key={item.sku} className="rounded-lg border bg-card p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <SkuTooltip sku={item.sku} descricao={item.descricao} />
+                    <p className="font-medium">{item.descricao}</p>
+                    {divergencia && (
+                      <Badge variant="outline" className="bg-warning/10 text-warning">
+                        {item.motivo ?? "sem motivo"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Total negociado</p>
+                    <p className="text-lg font-semibold tabular-nums">{formatBRLPreco(t.totalFinal)}</p>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 lg:grid-cols-8">
+                  <Campo label="Preço tabela">{formatBRLPreco(item.precoTabela)}</Campo>
+                  <Campo label="Preço negociado" destaque>
+                    {formatBRLPreco(item.precoNegociado)}
+                  </Campo>
+                  <Campo label="Desconto">{t.descontoPct > 0 ? `${t.descontoPct}%` : "—"}</Campo>
+                  <Campo label="Qtd preliminar">{formatNumber(item.qtdV1)}</Campo>
+                  <Campo label="Qtd final" destaque>
+                    <span className={divergencia ? "text-warning" : undefined}>
+                      {formatNumber(item.qtdFinal)}
+                    </span>
+                  </Campo>
+                  <Campo label="Motivo">
+                    {divergencia ? (
+                      <span className="text-warning">{item.motivo ?? "sem motivo"}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </Campo>
+                  <Campo label="Estoque no momento">{formatNumber(item.estoqueDisponivel)}</Campo>
+                  <Campo label="Ruptura">
+                    {t.valorPerdido > 0 ? (
+                      <span className="text-warning">−{formatBRLPreco(t.valorPerdido)}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </Campo>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="flex flex-wrap items-center justify-end gap-x-8 gap-y-2 rounded-lg bg-muted/50 px-5 py-4 text-sm">
+            <span className="text-muted-foreground">
+              Preliminar:{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {formatBRLPreco(totais.totalV1)}
+              </span>
+            </span>
+            {totais.valorPerdido > 0 && (
+              <span className="text-muted-foreground">
+                Ruptura:{" "}
+                <span className="font-medium text-warning tabular-nums">
+                  −{formatBRLPreco(totais.valorPerdido)}
+                </span>
+              </span>
+            )}
+            {ticket.bonificacao && (
+              <span className="text-muted-foreground">
+                Bonificação:{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {formatBRLPreco(ticket.bonificacao.valor)}
+                </span>
+              </span>
+            )}
+            <span className="text-muted-foreground">
+              Total final:{" "}
+              <span className="text-base font-semibold text-foreground tabular-nums">
+                {formatBRLPreco(totais.totalFinal)}
+              </span>
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <BonificacaoControl bonificacao={ticket.bonificacao} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base">Itens do pedido</CardTitle>
-            <CardDescription>
-              Preço negociado por SKU, quantidades e situação de estoque no momento da negociação.
-            </CardDescription>
+            <CardTitle className="text-base">Cliente</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Produto</TableHead>
-                    <TableHead className="text-right">Preço un.</TableHead>
-                    <TableHead className="text-right">Negociado</TableHead>
-                    <TableHead className="text-right">Vendido</TableHead>
-                    <TableHead className="text-right">Bonif.</TableHead>
-                    <TableHead className="text-right">Estoque</TableHead>
-                    <TableHead>Ruptura</TableHead>
-                    <TableHead className="text-right">Total item</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ticket.itens.map((item) => {
-                    const t = itemTotais(item);
-                    const semEstoque = item.qtdNegociada > item.estoqueDisponivel;
-                    return (
-                      <TableRow key={item.sku}>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{item.sku}</TableCell>
-                        <TableCell className="max-w-[220px] truncate font-medium">{item.descricao}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatBRL(item.precoNegociado)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(item.qtdNegociada)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(item.qtdVendida)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {item.qtdBonificada > 0 ? formatNumber(item.qtdBonificada) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {formatNumber(item.estoqueDisponivel)}
-                        </TableCell>
-                        <TableCell>
-                          {t.valorPerdido > 0 ? (
-                            <Badge variant="outline" className="bg-warning/10 text-warning">
-                              −{formatBRL(t.valorPerdido)}
-                            </Badge>
-                          ) : item.motivo ? (
-                            <span className="text-xs text-muted-foreground">{item.motivo}</span>
-                          ) : semEstoque ? (
-                            <span className="text-xs text-muted-foreground">estoque justo</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">ok</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-medium tabular-nums">
-                          {formatBRL(t.totalVendido)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+          <CardContent className="space-y-3 text-sm">
+            <div>
+              <p className="font-medium">{ticket.cliente}</p>
+              <p className="text-muted-foreground">{ticket.clienteCodigo}</p>
             </div>
-            <Separator className="my-4" />
-            <div className="flex flex-wrap items-center justify-end gap-x-8 gap-y-2 text-sm">
-              <span className="text-muted-foreground">
-                Negociado: <span className="font-medium text-foreground tabular-nums">{formatBRL(totais.totalNegociado)}</span>
-              </span>
-              {totais.valorPerdido > 0 && (
-                <span className="text-muted-foreground">
-                  Ruptura: <span className="font-medium text-warning tabular-nums">−{formatBRL(totais.valorPerdido)}</span>
-                </span>
-              )}
-              <span className="text-muted-foreground">
-                Total do pedido:{" "}
-                <span className="text-base font-semibold text-foreground tabular-nums">
-                  {formatBRL(totais.totalVendido)}
-                </span>
-              </span>
-            </div>
+            <Separator />
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+              <div>
+                <dt className="text-muted-foreground">Cidade/UF</dt>
+                <dd className="font-medium">{ticket.cidadeUf}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Canal</dt>
+                <dd className="font-medium">{ticket.canal}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Vendedor</dt>
+                <dd className="font-medium">{ticket.vendedor}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Data</dt>
+                <dd className="font-medium">{ticket.data}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">NF</dt>
+                <dd className="font-medium">
+                  {ticket.nf ?? <span className="italic text-muted-foreground">pendente</span>}
+                </dd>
+              </div>
+            </dl>
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Cliente</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div>
-                <p className="font-medium">{ticket.cliente}</p>
-                <p className="text-muted-foreground">{ticket.clienteCodigo}</p>
-              </div>
-              <Separator />
-              <dl className="space-y-2">
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Cidade/UF</dt>
-                  <dd>{ticket.cidadeUf}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Canal</dt>
-                  <dd>{ticket.canal}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Vendedor</dt>
-                  <dd>{ticket.vendedor}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Data</dt>
-                  <dd>{ticket.data}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">NF</dt>
-                  <dd>{ticket.nf ?? <span className="italic text-muted-foreground">pendente</span>}</dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Observações</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {ticket.observacoes ?? "Sem observações registradas."}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Observações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {ticket.observacoes ?? "Sem observações registradas."}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

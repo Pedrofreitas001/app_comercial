@@ -4,6 +4,7 @@
 alter table usuarios enable row level security;
 alter table clientes enable row level security;
 alter table produtos enable row level security;
+alter table precos_tabela enable row level security;
 alter table estoque enable row level security;
 alter table estoque_lotes_raw enable row level security;
 alter table import_batches enable row level security;
@@ -105,6 +106,20 @@ create policy produtos_insert on produtos
   for insert to authenticated with check (public.is_gerente_or_admin());
 
 create policy produtos_update on produtos
+  for update to authenticated using (public.is_gerente_or_admin()) with check (public.is_gerente_or_admin());
+
+-- =========================================================================
+-- precos_tabela: leitura liberada (vendedor precisa do preco vigente para
+-- pre-preencher a negociacao); escrita so admin/gerente. Sem delete fisico -
+-- versionar cria nova linha e encerra a vigencia da anterior.
+-- =========================================================================
+create policy precos_select_all on precos_tabela
+  for select to authenticated using (true);
+
+create policy precos_insert on precos_tabela
+  for insert to authenticated with check (public.is_gerente_or_admin());
+
+create policy precos_update on precos_tabela
   for update to authenticated using (public.is_gerente_or_admin()) with check (public.is_gerente_or_admin());
 
 -- =========================================================================

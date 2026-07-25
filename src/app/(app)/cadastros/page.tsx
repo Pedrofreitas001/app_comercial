@@ -7,7 +7,7 @@ import { mockClientes, mockProdutos } from "@/lib/mock-data";
 
 export default function CadastrosPage() {
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cadastros</h1>
