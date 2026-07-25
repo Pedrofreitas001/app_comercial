@@ -28,9 +28,9 @@ function aggregate() {
   let valorBonifAberto = 0;
   let bonifAtrasadas = 0;
 
-  const porSku = new Map<string, { label: string; valor: number; perdido: number }>();
-  const porCliente = new Map<string, { label: string; valor: number; perdido: number }>();
-  const porVendedor = new Map<string, { label: string; valor: number; perdido: number }>();
+  const porSku = new Map<string, { label: string; valor: number }>();
+  const porCliente = new Map<string, { label: string; valor: number }>();
+  const porVendedor = new Map<string, { label: string; valor: number }>();
 
   for (const ticket of ativos) {
     const totais = ticketTotais(ticket);
@@ -48,26 +48,23 @@ function aggregate() {
       }
     }
 
-    const cliente = porCliente.get(ticket.cliente) ?? { label: ticket.cliente, valor: 0, perdido: 0 };
+    const cliente = porCliente.get(ticket.cliente) ?? { label: ticket.cliente, valor: 0 };
     cliente.valor += totais.totalFinal;
-    cliente.perdido += totais.valorPerdido;
     porCliente.set(ticket.cliente, cliente);
 
-    const vendedor = porVendedor.get(ticket.vendedor) ?? { label: ticket.vendedor, valor: 0, perdido: 0 };
+    const vendedor = porVendedor.get(ticket.vendedor) ?? { label: ticket.vendedor, valor: 0 };
     vendedor.valor += totais.totalFinal;
-    vendedor.perdido += totais.valorPerdido;
     porVendedor.set(ticket.vendedor, vendedor);
 
     for (const item of ticket.itens) {
       const t = itemTotais(item);
-      const sku = porSku.get(item.sku) ?? { label: item.descricao, valor: 0, perdido: 0 };
+      const sku = porSku.get(item.sku) ?? { label: item.descricao, valor: 0 };
       sku.valor += t.totalFinal;
-      sku.perdido += t.valorPerdido;
       porSku.set(item.sku, sku);
     }
   }
 
-  const top = (map: Map<string, { label: string; valor: number; perdido: number }>) =>
+  const top = (map: Map<string, { label: string; valor: number }>) =>
     [...map.values()].sort((a, b) => b.valor - a.valor).slice(0, 5);
 
   return {

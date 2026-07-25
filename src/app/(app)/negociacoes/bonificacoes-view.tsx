@@ -125,8 +125,8 @@ export function BonificacoesView() {
                   <TableHead>Pedido</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">Peças</TableHead>
-                  <TableHead className="text-right">Faturamento</TableHead>
+                  <TableHead className="text-center">Peças</TableHead>
+                  <TableHead className="text-center">Faturamento</TableHead>
                   <TableHead>Data a pagar</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead>Anotações</TableHead>
@@ -145,8 +145,8 @@ export function BonificacoesView() {
                     </TableCell>
                     <TableCell className="max-w-[240px] truncate">{row.cliente}</TableCell>
                     <TableCell className="text-muted-foreground">{row.vendedor}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.pecas)} un.</TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
+                    <TableCell className="text-center tabular-nums">{formatNumber(row.pecas)} un.</TableCell>
+                    <TableCell className="text-center font-medium tabular-nums">
                       {formatBRLPreco(row.valor)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{row.dataPagamento ?? "—"}</TableCell>

@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { parseEstoqueStralog, type EstoqueParseResult } from "@/lib/import/estoque-parser";
 import { formatNumber } from "@/lib/format";
-import { mockProdutos } from "@/lib/mock-data";
+import { produtoCatalogo } from "@/lib/mock-data";
 
 export function ImportarEstoqueView() {
   const router = useRouter();
@@ -64,7 +64,7 @@ export function ImportarEstoqueView() {
   }
 
   const naoEncontrados = resultado
-    ? resultado.agregados.filter((a) => !mockProdutos.some((p) => p.sku === a.codigo))
+    ? resultado.agregados.filter((a) => !produtoCatalogo(a.codigo))
     : [];
 
   return (
@@ -170,18 +170,18 @@ export function ImportarEstoqueView() {
                     <TableRow>
                       <TableHead>SKU (código STRALOG)</TableHead>
                       <TableHead>Produto na planilha</TableHead>
-                      <TableHead className="text-right">Quantidade disponível</TableHead>
+                      <TableHead className="text-center">Quantidade disponível</TableHead>
                       <TableHead>Catálogo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {resultado.agregados.map((row) => {
-                      const encontrado = mockProdutos.some((p) => p.sku === row.codigo);
+                      const encontrado = Boolean(produtoCatalogo(row.codigo));
                       return (
                         <TableRow key={row.codigo}>
                           <TableCell className="font-mono text-xs text-muted-foreground">{row.codigo}</TableCell>
                           <TableCell className="max-w-[320px] truncate font-medium">{row.produto}</TableCell>
-                          <TableCell className="text-right font-medium tabular-nums">
+                          <TableCell className="text-center font-medium tabular-nums">
                             {formatNumber(row.quantidade)} UN
                           </TableCell>
                           <TableCell>

@@ -1,5 +1,37 @@
-// Dados fictícios só para validar o design antes do Supabase estar
-// configurado. Substituídos por dados reais nas próximas etapas.
+// Tickets/estoque/dashboard ainda são ficticios (validam o design antes do
+// Supabase existir). Clientes e produtos já vêm da base real do cliente —
+// ver src/lib/data/clientes.json e produtos.json (gerados de base_cliente.xlsx
+// e DIM_V1.xlsx).
+import clientesData from "@/lib/data/clientes.json";
+import produtosData from "@/lib/data/produtos.json";
+
+export interface Cliente {
+  codigo: string;
+  nome: string; // razão social
+  nomeResumido: string; // editável — evita a razão social gigante nas telas
+  nomeFantasia: string | null;
+  rede: string | null;
+  canal: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cnpj: string | null;
+  vendedorNomeOrigem: string | null;
+  gerenteNomeOrigem: string | null;
+  tipoFrete: string | null;
+  tabelaPreco: string | null;
+  status: "ativo" | "inativo";
+}
+
+export interface Produto {
+  sku: string; // SKU_saida (código de venda canônico)
+  skuEntrada: string[]; // código(s) do WMS/STRALOG que resolvem para este SKU
+  descricao: string;
+  categoria: string | null;
+  linha: string | null;
+  marca: string | null;
+  preco: number | null; // sem fonte na base DIM_V1 — nulo até preenchido manualmente
+  status: "ativo" | "inativo";
+}
 
 export type TicketStatus = "rascunho" | "em_andamento" | "concluida" | "cancelada";
 
@@ -102,8 +134,10 @@ export const mockVendedores = ["Andre Benah", "Camila Rocha", "Paulo Menezes"];
 // guarda o catálogo/data em que o SKU foi escolhido pelo vendedor.
 export const mockCatalogoRef = "Catálogo STRALOG · 24/07/2026";
 
-export function produtoCatalogo(sku: string) {
-  return mockProdutos.find((p) => p.sku === sku) ?? null;
+// Aceita tanto o SKU de venda (SKU_saida) quanto um código de entrada do WMS —
+// é assim que o "Código" do export STRALOG encontra o produto certo.
+export function produtoCatalogo(codigo: string) {
+  return mockProdutos.find((p) => p.sku === codigo || p.skuEntrada.includes(codigo)) ?? null;
 }
 
 // Estoque disponível "agora" para o SKU — é isto que o vendedor vê ao montar
@@ -143,7 +177,7 @@ export const mockTickets: MockTicket[] = [
         motivo: MOTIVO_SEM_ESTOQUE,
       },
       {
-        sku: "DC82169",
+        sku: "DC821693",
         descricao: "DIVINE POWER DOSE CONDITIONING 13ML",
         precoTabela: 19.9,
         precoNegociado: 18.9,
@@ -153,8 +187,8 @@ export const mockTickets: MockTicket[] = [
         motivo: null,
       },
       {
-        sku: "C82071",
-        descricao: "CRONOGRAMA CAPILAR COLOR",
+        sku: "CR823055",
+        descricao: "CRONOGRAMA CAPILAR COLOR CONDICIONANTE 3X13ML",
         precoTabela: 64.5,
         precoNegociado: 59.9,
         qtdV1: 36,
@@ -179,8 +213,8 @@ export const mockTickets: MockTicket[] = [
     bonificacao: { pecas: 6, valor: 252.0, dataPagamento: "24/07/2026", paga: true, observacoes: null },
     itens: [
       {
-        sku: "A55012",
-        descricao: "AMPOLA DE TRATAMENTO INTENSIVO",
+        sku: "DE821556",
+        descricao: "AMPOLA CONDICIONANTE DEFENSE POWER DOSE 13ML",
         precoTabela: 21.3,
         precoNegociado: 19.9,
         qtdV1: 96,
@@ -189,8 +223,8 @@ export const mockTickets: MockTicket[] = [
         motivo: null,
       },
       {
-        sku: "B90044",
-        descricao: "MASCARA RECONSTRUCAO PROFUNDA",
+        sku: "RC821174",
+        descricao: "MASCARA CAPILAR REVIVAL RECONSTRUTORA 200G",
         precoTabela: 42.0,
         precoNegociado: 39.0,
         qtdV1: 48,
@@ -225,7 +259,7 @@ export const mockTickets: MockTicket[] = [
         motivo: MOTIVO_SEM_ESTOQUE,
       },
       {
-        sku: "DC82169",
+        sku: "DC821693",
         descricao: "DIVINE POWER DOSE CONDITIONING 13ML",
         precoTabela: 19.9,
         precoNegociado: 17.9,
@@ -251,8 +285,8 @@ export const mockTickets: MockTicket[] = [
     bonificacao: null,
     itens: [
       {
-        sku: "B90044",
-        descricao: "MASCARA RECONSTRUCAO PROFUNDA",
+        sku: "RC821174",
+        descricao: "MASCARA CAPILAR REVIVAL RECONSTRUTORA 200G",
         precoTabela: 42.0,
         precoNegociado: 42.0,
         qtdV1: 24,
@@ -261,8 +295,8 @@ export const mockTickets: MockTicket[] = [
         motivo: MOTIVO_SEM_ESTOQUE,
       },
       {
-        sku: "A55012",
-        descricao: "AMPOLA DE TRATAMENTO INTENSIVO",
+        sku: "DE821556",
+        descricao: "AMPOLA CONDICIONANTE DEFENSE POWER DOSE 13ML",
         precoTabela: 21.3,
         precoNegociado: 21.3,
         qtdV1: 48,
@@ -287,8 +321,8 @@ export const mockTickets: MockTicket[] = [
     bonificacao: null,
     itens: [
       {
-        sku: "C82071",
-        descricao: "CRONOGRAMA CAPILAR COLOR",
+        sku: "CR823055",
+        descricao: "CRONOGRAMA CAPILAR COLOR CONDICIONANTE 3X13ML",
         precoTabela: 64.5,
         precoNegociado: 64.5,
         qtdV1: 12,
@@ -313,7 +347,7 @@ export const mockTickets: MockTicket[] = [
     bonificacao: { pecas: 2, valor: 129.0, dataPagamento: "28/07/2026", paga: false, observacoes: null },
     itens: [
       {
-        sku: "DC82169",
+        sku: "DC821693",
         descricao: "DIVINE POWER DOSE CONDITIONING 13ML",
         precoTabela: 19.9,
         precoNegociado: 18.5,
@@ -333,8 +367,8 @@ export const mockTickets: MockTicket[] = [
         motivo: "Preço",
       },
       {
-        sku: "C82071",
-        descricao: "CRONOGRAMA CAPILAR COLOR",
+        sku: "CR823055",
+        descricao: "CRONOGRAMA CAPILAR COLOR CONDICIONANTE 3X13ML",
         precoTabela: 64.5,
         precoNegociado: 61.0,
         qtdV1: 24,
@@ -359,8 +393,8 @@ export const mockTickets: MockTicket[] = [
     bonificacao: { pecas: 20, valor: 378.0, dataPagamento: "22/07/2026", paga: true, observacoes: null },
     itens: [
       {
-        sku: "A55012",
-        descricao: "AMPOLA DE TRATAMENTO INTENSIVO",
+        sku: "DE821556",
+        descricao: "AMPOLA CONDICIONANTE DEFENSE POWER DOSE 13ML",
         precoTabela: 21.3,
         precoNegociado: 18.9,
         qtdV1: 200,
@@ -369,8 +403,8 @@ export const mockTickets: MockTicket[] = [
         motivo: null,
       },
       {
-        sku: "B90044",
-        descricao: "MASCARA RECONSTRUCAO PROFUNDA",
+        sku: "RC821174",
+        descricao: "MASCARA CAPILAR REVIVAL RECONSTRUTORA 200G",
         precoTabela: 42.0,
         precoNegociado: 38.0,
         qtdV1: 60,
@@ -456,23 +490,11 @@ export const mockDistribuicaoMotivo = [
   { motivo: "Outro", valor: 2 },
 ];
 
-export const mockClientes = [
-  { codigo: "C00000488", nome: "MAKIBELLA COSMETICOS SHOP LTDA", rede: "MAKIBELLA", canal: "Médio Varejo", cidade: "São Paulo", estado: "SP", status: "ativo" },
-  { codigo: "C00001411", nome: "STUDIO FERNANDA MAGALHAES HAIR AND MAKE UP LTDA", rede: "STUDIO FERNANDA MAGALHAES", canal: "Distribuidor", cidade: "São Paulo", estado: "SP", status: "ativo" },
-  { codigo: "C00000489", nome: "MAKIBELLA COSMETICOS SHOP LTDA", rede: "MAKIBELLA", canal: "Médio Varejo", cidade: "Osasco", estado: "SP", status: "ativo" },
-  { codigo: "C00002190", nome: "BEAUTY SUPPLY COSMETICS SOCIEDADE UNIPES", rede: "BEAUTY SUPPLY", canal: "Distribuidor", cidade: "Rio de Janeiro", estado: "RJ", status: "ativo" },
-  { codigo: "C00003310", nome: "SALAO VIP HAIR DESIGN LTDA", rede: "VIP HAIR", canal: "Pequeno Varejo", cidade: "Curitiba", estado: "PR", status: "ativo" },
-  { codigo: "C00004021", nome: "DROGARIA CENTRAL COSMETICOS LTDA", rede: "DROGARIA CENTRAL", canal: "Farma", cidade: "Belo Horizonte", estado: "MG", status: "inativo" },
-];
-
-export const mockProdutos = [
-  { sku: "D82399", descricao: "DIVINE POWER DOSE - AMPOLA 13ML", categoria: "Ampola de Tratamento", marca: null, preco: 18.9, status: "ativo" },
-  { sku: "DC82169", descricao: "DIVINE POWER DOSE CONDITIONING 13ML", categoria: "Ampola de Tratamento", marca: null, preco: 19.9, status: "ativo" },
-  { sku: "C82071", descricao: "CRONOGRAMA CAPILAR COLOR", categoria: "Kit Tratamento", marca: null, preco: 64.5, status: "ativo" },
-  { sku: "A55012", descricao: "AMPOLA DE TRATAMENTO INTENSIVO", categoria: "Ampola de Tratamento", marca: null, preco: 21.3, status: "ativo" },
-  { sku: "B90044", descricao: "MASCARA RECONSTRUCAO PROFUNDA", categoria: "Máscara", marca: null, preco: 42.0, status: "ativo" },
-  { sku: "0.006", descricao: "SACOLA LUXO TRIPLEX", categoria: "Material de Apoio", marca: null, preco: null, status: "ativo" },
-];
+// Catálogo completo importado da base real (ver src/lib/data/README) —
+// base_cliente.xlsx (2730 clientes) e DIM_V1.xlsx (440 produtos, deduplicados
+// por SKU_saida). Editável em Cadastros; nomeResumido é ajustável por linha.
+export const mockClientes: Cliente[] = clientesData as Cliente[];
+export const mockProdutos: Produto[] = produtosData as Produto[];
 
 export interface MockEstoqueRow {
   sku: string;
@@ -487,10 +509,10 @@ export const mockEstoqueDataReferencia = "24/07/2026";
 
 export const mockEstoque: MockEstoqueRow[] = [
   { sku: "D82399", descricao: "DIVINE POWER DOSE - AMPOLA 13ML", categoria: "Ampola de Tratamento", quantidade: 273, unidade: "UN", vencimentoProximo: "01/10/2027" },
-  { sku: "DC82169", descricao: "DIVINE POWER DOSE CONDITIONING 13ML", categoria: "Ampola de Tratamento", quantidade: 264, unidade: "UN", vencimentoProximo: "30/01/2029" },
-  { sku: "A55012", descricao: "AMPOLA DE TRATAMENTO INTENSIVO", categoria: "Ampola de Tratamento", quantidade: 310, unidade: "UN", vencimentoProximo: "15/03/2028" },
-  { sku: "C82071", descricao: "CRONOGRAMA CAPILAR COLOR", categoria: "Kit Tratamento", quantidade: 88, unidade: "UN", vencimentoProximo: "01/05/2028" },
-  { sku: "B90044", descricao: "MASCARA RECONSTRUCAO PROFUNDA", categoria: "Máscara", quantidade: 20, unidade: "UN", vencimentoProximo: "12/11/2027" },
-  { sku: "F11200", descricao: "FINALIZADOR LEAVE-IN 200ML", categoria: "Finalizador", quantidade: 0, unidade: "UN", vencimentoProximo: null },
+  { sku: "DC821693", descricao: "DIVINE POWER DOSE CONDITIONING 13ML", categoria: "Ampola de Tratamento", quantidade: 264, unidade: "UN", vencimentoProximo: "30/01/2029" },
+  { sku: "DE821556", descricao: "AMPOLA CONDICIONANTE DEFENSE POWER DOSE 13ML", categoria: "Ampola de Tratamento", quantidade: 310, unidade: "UN", vencimentoProximo: "15/03/2028" },
+  { sku: "CR823055", descricao: "CRONOGRAMA CAPILAR COLOR CONDICIONANTE 3X13ML", categoria: "Kit Tratamento", quantidade: 88, unidade: "UN", vencimentoProximo: "01/05/2028" },
+  { sku: "RC821174", descricao: "MASCARA CAPILAR REVIVAL RECONSTRUTORA 200G", categoria: "Máscara", quantidade: 20, unidade: "UN", vencimentoProximo: "12/11/2027" },
+  { sku: "DC821662", descricao: "DIVINE 10 IN 1 LEAVE-IN CONDICIONANTE 200G", categoria: "Finalizador", quantidade: 0, unidade: "UN", vencimentoProximo: null },
   { sku: "0.006", descricao: "SACOLA LUXO TRIPLEX", categoria: "Material de Apoio", quantidade: 1450, unidade: "UN", vencimentoProximo: null },
 ];

@@ -1,10 +1,6 @@
 import { formatBRLCompact } from "@/lib/format";
 
-export function RankedList({
-  items,
-}: {
-  items: { label: string; valor: number; perdido?: number }[];
-}) {
+export function RankedList({ items }: { items: { label: string; valor: number }[] }) {
   const max = Math.max(...items.map((item) => item.valor), 1);
 
   return (
@@ -21,11 +17,6 @@ export function RankedList({
               style={{ width: `${Math.max((item.valor / max) * 100, 4)}%` }}
             />
           </div>
-          {item.perdido != null && item.perdido > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {formatBRLCompact(item.perdido)} perdido por ruptura
-            </p>
-          )}
         </li>
       ))}
     </ul>

@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, TriangleAlert, Trash2 } from "lucide-react";
+import { Gift, Plus, TriangleAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Combobox } from "@/components/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -51,12 +52,28 @@ function novoItem(): ItemForm {
   };
 }
 
+const clienteOptions = mockClientes.map((c) => ({
+  value: c.codigo,
+  label: c.nomeResumido,
+  sublabel: [c.cidade && c.estado ? `${c.cidade}/${c.estado}` : null, c.codigo].filter(Boolean).join(" · "),
+}));
+
+const produtoOptions = mockProdutos.map((p) => ({
+  value: p.sku,
+  label: p.descricao,
+  sublabel: [p.sku, p.categoria].filter(Boolean).join(" · "),
+}));
+
 export function NovaNegociacaoForm() {
   const router = useRouter();
   const [clienteCodigo, setClienteCodigo] = useState("");
   const [vendedor, setVendedor] = useState(mockVendedores[0]);
   const [observacoes, setObservacoes] = useState("");
   const [itens, setItens] = useState<ItemForm[]>([novoItem()]);
+  const [temBonificacao, setTemBonificacao] = useState(false);
+  const [boniPecas, setBoniPecas] = useState("");
+  const [boniValor, setBoniValor] = useState("");
+  const [boniData, setBoniData] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   const cliente = mockClientes.find((c) => c.codigo === clienteCodigo) ?? null;
@@ -122,12 +139,16 @@ export function NovaNegociacaoForm() {
 
   const itensValidos = itens.filter((item) => item.sku);
   const pendencias = itensValidos.filter((item) => item.qtdFinal !== item.qtdV1 && !item.motivo);
-  const podeSalvar = Boolean(clienteCodigo) && itensValidos.length > 0 && pendencias.length === 0;
+  const bonificacaoIncompleta = temBonificacao && (!boniPecas || !boniValor);
+  const podeSalvar =
+    Boolean(clienteCodigo) && itensValidos.length > 0 && pendencias.length === 0 && !bonificacaoIncompleta;
 
   function salvar() {
     if (!podeSalvar) {
       toast.error("Revise a negociação", {
-        description: "Selecione um cliente e informe o motivo em todo item com quantidade divergente.",
+        description: bonificacaoIncompleta
+          ? "Informe peças e faturamento da bonificação, ou desmarque a opção."
+          : "Selecione um cliente e informe o motivo em todo item com quantidade divergente.",
       });
       return;
     }
@@ -152,21 +173,17 @@ export function NovaNegociacaoForm() {
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label>Cliente</Label>
-            <Select value={clienteCodigo} onValueChange={(v) => setClienteCodigo(v ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione o cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {mockClientes.map((c) => (
-                  <SelectItem key={c.codigo} value={c.codigo}>
-                    {c.nome} · {c.cidade}/{c.estado}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={clienteOptions}
+              value={clienteCodigo}
+              onChange={setClienteCodigo}
+              placeholder="Selecione o cliente"
+              searchPlaceholder="Buscar por nome ou código..."
+              emptyText="Nenhum cliente encontrado."
+            />
             {cliente && (
               <p className="text-xs text-muted-foreground">
-                {cliente.rede} · {cliente.canal}
+                {cliente.rede ?? cliente.nome} · {cliente.canal ?? "canal não informado"}
               </p>
             )}
           </div>
@@ -219,18 +236,14 @@ export function NovaNegociacaoForm() {
                   <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-1.5 lg:col-span-2">
                       <Label className="text-xs text-muted-foreground">SKU / Produto</Label>
-                      <Select value={item.sku} onValueChange={(v) => onSkuChange(item.key, v ?? "")}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Selecione o produto" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {mockProdutos.map((p) => (
-                            <SelectItem key={p.sku} value={p.sku}>
-                              {p.sku} · {p.descricao}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        options={produtoOptions}
+                        value={item.sku}
+                        onChange={(sku) => onSkuChange(item.key, sku)}
+                        placeholder="Selecione o produto"
+                        searchPlaceholder="Buscar por SKU ou descrição..."
+                        emptyText="Nenhum produto encontrado."
+                      />
                       {produto && (
                         <p className="text-xs text-muted-foreground">
                           Tabela {formatBRLPreco(produto.preco ?? 0)} · Estoque{" "}
@@ -354,6 +367,54 @@ export function NovaNegociacaoForm() {
             </span>
           </div>
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Gift className="size-4 text-muted-foreground" />
+              Bonificação
+            </CardTitle>
+            <CardDescription>Acordo sobre o total do pedido, não por SKU (opcional).</CardDescription>
+          </div>
+          <Button
+            variant={temBonificacao ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setTemBonificacao((v) => !v)}
+          >
+            {temBonificacao ? "Remover bonificação" : "Adicionar bonificação"}
+          </Button>
+        </CardHeader>
+        {temBonificacao && (
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Peças acordadas</Label>
+              <Input
+                type="number"
+                min={0}
+                value={boniPecas}
+                onChange={(e) => setBoniPecas(e.target.value)}
+                placeholder="Ex.: 16"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Faturamento acordado</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={boniValor}
+                onChange={(e) => setBoniValor(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Data a pagar</Label>
+              <Input type="date" value={boniData} onChange={(e) => setBoniData(e.target.value)} />
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       <div className="flex justify-end gap-2">

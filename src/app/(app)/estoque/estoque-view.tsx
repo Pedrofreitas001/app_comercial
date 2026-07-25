@@ -42,7 +42,7 @@ export function EstoqueView() {
                 <TableHead>SKU</TableHead>
                 <TableHead>Produto</TableHead>
                 <TableHead>Categoria</TableHead>
-                <TableHead className="text-right">Disponível</TableHead>
+                <TableHead className="text-center">Disponível</TableHead>
                 <TableHead>Vencimento mais próximo</TableHead>
                 <TableHead>Situação</TableHead>
               </TableRow>
@@ -55,7 +55,7 @@ export function EstoqueView() {
                     <TableCell className="font-mono text-xs text-muted-foreground">{row.sku}</TableCell>
                     <TableCell className="max-w-[280px] truncate font-medium">{row.descricao}</TableCell>
                     <TableCell className="text-muted-foreground">{row.categoria}</TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
+                    <TableCell className="text-center font-medium tabular-nums">
                       {formatNumber(row.quantidade)} {row.unidade}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
