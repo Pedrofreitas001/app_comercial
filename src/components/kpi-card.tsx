@@ -5,29 +5,32 @@ import { cn } from "@/lib/utils";
 export function KpiCard({
   label,
   value,
+  hint,
   icon: Icon,
   tone = "default",
 }: {
   label: string;
   value: string;
+  hint?: string;
   icon: LucideIcon;
   tone?: "default" | "warning" | "success";
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+    <Card className="gap-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+        <CardTitle className="text-[13px] font-medium text-muted-foreground">{label}</CardTitle>
         <Icon
           className={cn(
             "size-4",
             tone === "warning" && "text-warning",
             tone === "success" && "text-success",
-            tone === "default" && "text-muted-foreground",
+            tone === "default" && "text-muted-foreground/70",
           )}
         />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold tracking-tight">{value}</div>
+        <div className="text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
+        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
   );

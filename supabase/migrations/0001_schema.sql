@@ -183,6 +183,8 @@ create table negociacoes (
   vendedor_id uuid not null references usuarios(id),
   data date not null default current_date,
   status negociacao_status not null default 'rascunho',
+  -- nota fiscal vinculada ao pedido (preenchida depois do faturamento no ERP)
+  nf_numero text,
   observacoes text,
   created_by uuid references usuarios(id),
   created_at timestamptz not null default now(),
@@ -267,6 +269,7 @@ select
   n.data as data_negociacao,
   date_trunc('month', n.data)::date as mes_referencia,
   n.status as negociacao_status,
+  n.nf_numero,
   n.vendedor_id,
   uv.nome_completo as vendedor_nome,
   n.cliente_id,

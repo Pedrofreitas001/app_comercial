@@ -1,120 +1,187 @@
-import { Boxes, CircleDollarSign, Handshake, PackageX, TrendingDown, Users } from "lucide-react";
+import { ArrowRight, CircleDollarSign, Handshake, PackageX, ShoppingCart, Users } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
-import { MonthlyLossChart } from "@/components/dashboard/monthly-loss-chart";
-import { MotivoPieChart } from "@/components/dashboard/motivo-pie-chart";
+import { MonthlyChart } from "@/components/dashboard/monthly-chart";
+import { MotivoBars } from "@/components/dashboard/motivo-bars";
 import { RankedList } from "@/components/dashboard/ranked-list";
-import { NegociacaoStatusBadge } from "@/components/negociacao-status-badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TicketsTable } from "@/components/tickets-table";
 import { formatBRL, formatNumber } from "@/lib/format";
 import {
-  mockDemandaPorMes,
+  itemTotais,
   mockDistribuicaoMotivo,
-  mockKpis,
-  mockNegociacoesRecentes,
-  mockTopClientes,
-  mockTopSkus,
-  mockTopVendedores,
+  mockMensal,
+  mockTickets,
+  ticketTotais,
 } from "@/lib/mock-data";
 
+function aggregate() {
+  const ativos = mockTickets.filter((t) => t.status !== "cancelada");
+  let totalNegociado = 0;
+  let totalVendido = 0;
+  let valorPerdido = 0;
+  let unidadesPerdidas = 0;
+
+  const porSku = new Map<string, { label: string; valor: number; perdido: number }>();
+  const porCliente = new Map<string, { label: string; valor: number; perdido: number }>();
+  const porVendedor = new Map<string, { label: string; valor: number; perdido: number }>();
+
+  for (const ticket of ativos) {
+    const totais = ticketTotais(ticket);
+    totalNegociado += totais.totalNegociado;
+    totalVendido += totais.totalVendido;
+    valorPerdido += totais.valorPerdido;
+    unidadesPerdidas += totais.unidadesPerdidas;
+
+    const cliente = porCliente.get(ticket.cliente) ?? { label: ticket.cliente, valor: 0, perdido: 0 };
+    cliente.valor += totais.totalVendido;
+    cliente.perdido += totais.valorPerdido;
+    porCliente.set(ticket.cliente, cliente);
+
+    const vendedor = porVendedor.get(ticket.vendedor) ?? { label: ticket.vendedor, valor: 0, perdido: 0 };
+    vendedor.valor += totais.totalVendido;
+    vendedor.perdido += totais.valorPerdido;
+    porVendedor.set(ticket.vendedor, vendedor);
+
+    for (const item of ticket.itens) {
+      const t = itemTotais(item);
+      const sku = porSku.get(item.sku) ?? { label: item.descricao, valor: 0, perdido: 0 };
+      sku.valor += t.totalVendido;
+      sku.perdido += t.valorPerdido;
+      porSku.set(item.sku, sku);
+    }
+  }
+
+  const top = (map: Map<string, { label: string; valor: number; perdido: number }>) =>
+    [...map.values()].sort((a, b) => b.valor - a.valor).slice(0, 5);
+
+  return {
+    totalNegociado,
+    totalVendido,
+    valorPerdido,
+    unidadesPerdidas,
+    negociacoes: ativos.length,
+    clientes: new Set(ativos.map((t) => t.clienteCodigo)).size,
+    skusAfetados: new Set(
+      ativos.flatMap((t) => t.itens.filter((i) => itemTotais(i).valorPerdido > 0).map((i) => i.sku)),
+    ).size,
+    topSkus: top(porSku),
+    topClientes: top(porCliente),
+    topVendedores: top(porVendedor),
+  };
+}
+
 export default function DashboardPage() {
+  const agg = aggregate();
+  const conversao = agg.totalNegociado > 0 ? Math.round((agg.totalVendido / agg.totalNegociado) * 100) : 0;
+  const ultimas = mockTickets.slice(0, 5);
+
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Visão executiva de demanda perdida por ruptura de estoque.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Visão comercial</h1>
+          <p className="text-sm text-muted-foreground">Acompanhamento das negociações da semana.</p>
         </div>
         <Badge variant="secondary">Dados de exemplo</Badge>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Demanda perdida (R$)" value={formatBRL(mockKpis.demandaPerdidaReais)} icon={CircleDollarSign} tone="warning" />
-        <KpiCard label="Demanda perdida (un.)" value={formatNumber(mockKpis.demandaPerdidaUnidades)} icon={PackageX} tone="warning" />
-        <KpiCard label="Negociações do dia" value={formatNumber(mockKpis.negociacoesHoje)} icon={Handshake} />
-        <KpiCard label="Clientes atendidos" value={formatNumber(mockKpis.clientesAtendidos)} icon={Users} />
-        <KpiCard label="SKUs afetados" value={formatNumber(mockKpis.skusAfetados)} icon={Boxes} tone="warning" />
-        <KpiCard label="Valor potencial perdido" value={formatBRL(mockKpis.valorPotencialPerdido)} icon={TrendingDown} tone="warning" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Total negociado"
+          value={formatBRL(agg.totalNegociado)}
+          hint={`${agg.negociacoes} negociações no período`}
+          icon={Handshake}
+        />
+        <KpiCard
+          label="Total vendido"
+          value={formatBRL(agg.totalVendido)}
+          hint={`${conversao}% do negociado`}
+          icon={ShoppingCart}
+          tone="success"
+        />
+        <KpiCard
+          label="Clientes atendidos"
+          value={formatNumber(agg.clientes)}
+          hint="clientes distintos no período"
+          icon={Users}
+        />
+        <KpiCard
+          label="Demanda perdida"
+          value={formatBRL(agg.valorPerdido)}
+          hint={`${formatNumber(agg.unidadesPerdidas)} un. · ${agg.skusAfetados} SKUs afetados`}
+          icon={PackageX}
+          tone="warning"
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Demanda perdida por mês</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MonthlyLossChart data={mockDemandaPorMes} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Distribuição por motivo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MotivoPieChart data={mockDistribuicaoMotivo} />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Negociado vs. vendido por mês</CardTitle>
+          <CardDescription>Evolução do volume comercial nos últimos meses.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MonthlyChart data={mockMensal} />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Top SKUs</CardTitle>
+            <CardDescription>Por valor vendido</CardDescription>
           </CardHeader>
           <CardContent>
-            <RankedList items={mockTopSkus.map((item) => ({ label: item.descricao, valor: item.valor }))} />
+            <RankedList items={agg.topSkus} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Top clientes</CardTitle>
+            <CardDescription>Por valor vendido</CardDescription>
           </CardHeader>
           <CardContent>
-            <RankedList items={mockTopClientes.map((item) => ({ label: item.nome, valor: item.valor }))} />
+            <RankedList items={agg.topClientes} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Top vendedores</CardTitle>
+            <CardDescription>Por valor vendido</CardDescription>
           </CardHeader>
           <CardContent>
-            <RankedList items={mockTopVendedores.map((item) => ({ label: item.nome, valor: item.valor }))} />
+            <RankedList items={agg.topVendedores} />
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Últimas negociações</CardTitle>
+          <CardTitle className="text-base">Motivos de ajuste nas negociações</CardTitle>
+          <CardDescription>
+            Distribuição dos motivos informados quando a quantidade final difere da negociada.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Vendedor</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Valor perdido</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockNegociacoesRecentes.map((neg, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{neg.cliente}</TableCell>
-                  <TableCell className="text-muted-foreground">{neg.vendedor}</TableCell>
-                  <TableCell className="text-muted-foreground">{neg.data}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {neg.valorPerdido > 0 ? formatBRL(neg.valorPerdido) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <NegociacaoStatusBadge status={neg.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <MotivoBars data={mockDistribuicaoMotivo} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="text-base">Últimas negociações</CardTitle>
+            <CardDescription>Clique no código para abrir o raio-x do pedido.</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/negociacoes" />}>
+            Ver todas
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <TicketsTable tickets={ultimas} />
         </CardContent>
       </Card>
     </div>

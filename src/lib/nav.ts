@@ -2,12 +2,8 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Handshake,
-  Users,
-  Package,
   Boxes,
-  TriangleAlert,
-  Paperclip,
-  FileBarChart,
+  FolderOpen,
   Settings,
 } from "lucide-react";
 import type { UserRole } from "@/lib/types";
@@ -19,14 +15,11 @@ export interface NavItem {
   roles: UserRole[];
 }
 
+// Navegacao enxuta de proposito: o dashboard e o hub, o resto e apoio.
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/negociacoes", label: "Negociações", icon: Handshake, roles: ["admin", "gerente", "vendedor"] },
-  { href: "/clientes", label: "Clientes", icon: Users, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/produtos", label: "Produtos", icon: Package, roles: ["admin", "gerente", "vendedor", "leitura"] },
+  { href: "/negociacoes", label: "Negociações", icon: Handshake, roles: ["admin", "gerente", "vendedor", "leitura"] },
   { href: "/estoque", label: "Estoque", icon: Boxes, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/rupturas", label: "Rupturas", icon: TriangleAlert, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/arquivos", label: "Arquivos", icon: Paperclip, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/relatorios", label: "Relatórios", icon: FileBarChart, roles: ["admin", "gerente", "leitura"] },
+  { href: "/cadastros", label: "Cadastros", icon: FolderOpen, roles: ["admin", "gerente"] },
   { href: "/configuracoes", label: "Configurações", icon: Settings, roles: ["admin"] },
 ];
