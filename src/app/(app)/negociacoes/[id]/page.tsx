@@ -1,41 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Gift, Handshake, PackageX, ShoppingCart } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { KpiCard } from "@/components/kpi-card";
-import { SkuTooltip } from "@/components/sku-tooltip";
-import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
-import { bonifStatus, bonificacaoTotais, itemTotais, ticketTotais } from "@/lib/mock-data";
+import { formatBRL, formatNumber } from "@/lib/format";
+import { bonifStatus, bonificacaoTotais, ticketTotais } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/server";
 import { getNegociacaoById } from "@/lib/queries/negociacoes";
 import { getProdutos } from "@/lib/queries/cadastros";
+import { getEstoqueNormalizado } from "@/lib/queries/estoque";
 import { NfForm } from "./nf-form";
 import { StatusControl } from "./status-control";
+import { ItensPanel } from "./itens-panel";
 import { BonificacaoControl } from "./bonificacao-control";
 import { NotasPanel } from "./notas-panel";
 import { ArquivosPanel } from "./arquivos-panel";
-
-function Campo({
-  label,
-  children,
-  destaque = false,
-}: {
-  label: string;
-  children: React.ReactNode;
-  destaque?: boolean;
-}) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className={destaque ? "text-sm font-semibold tabular-nums" : "text-sm font-medium tabular-nums"}>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 export default async function NegociacaoDetalhePage({
   params,
@@ -47,12 +28,22 @@ export default async function NegociacaoDetalhePage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const [ticket, produtos] = await Promise.all([getNegociacaoById(supabase, id), getProdutos(supabase)]);
+  const [ticket, produtos, { linhas: linhasEstoque }, { data: usuario }, { data: motivos }] = await Promise.all([
+    getNegociacaoById(supabase, id),
+    getProdutos(supabase),
+    getEstoqueNormalizado(supabase),
+    supabase.from("usuarios").select("role").eq("id", user!.id).single(),
+    supabase.from("motivos_perda").select("codigo, label"),
+  ]);
   if (!ticket) notFound();
 
   const totais = ticketTotais(ticket);
   const statusBoni = bonifStatus(ticket.bonificacao);
   const boniTotais = bonificacaoTotais(ticket.bonificacao);
+
+  // Pedido cancelado não deve mais ser mexido; leitura só nunca edita.
+  // As demais permissões (carteira do vendedor) já são garantidas por RLS.
+  const podeEditar = ticket.status !== "cancelada" && usuario?.role !== "leitura";
 
   return (
     <div className="space-y-6">
@@ -123,103 +114,14 @@ export default async function NegociacaoDetalhePage({
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Itens acordados</CardTitle>
-          <CardDescription>
-            A negociação preliminar é o acordo original; se houver ruptura, a quantidade final
-            registra o ajuste e o motivo justifica a diferença. Passe o mouse no SKU para ver a
-            categoria do catálogo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {ticket.itens.map((item) => {
-            const t = itemTotais(item);
-            const divergencia = item.qtdV1 !== item.qtdFinal;
-            return (
-              <div key={item.sku} className="rounded-lg border bg-card p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <SkuTooltip sku={item.sku} descricao={item.descricao} categoria={item.categoria} />
-                    <p className="font-medium">{item.descricao}</p>
-                    {divergencia && (
-                      <Badge variant="outline" className="bg-warning/10 text-warning">
-                        {item.motivo ?? "sem motivo"}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Total negociado</p>
-                    <p className="text-lg font-semibold tabular-nums">{formatBRLPreco(t.totalFinal)}</p>
-                  </div>
-                </div>
-
-                <Separator className="my-4" />
-
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 lg:grid-cols-8">
-                  <Campo label="Preço tabela">{formatBRLPreco(item.precoTabela)}</Campo>
-                  <Campo label="Preço negociado" destaque>
-                    {formatBRLPreco(item.precoNegociado)}
-                  </Campo>
-                  <Campo label="Desconto">{t.descontoPct > 0 ? `${t.descontoPct}%` : "—"}</Campo>
-                  <Campo label="Qtd preliminar">{formatNumber(item.qtdV1)}</Campo>
-                  <Campo label="Qtd final" destaque>
-                    <span className={divergencia ? "text-warning" : undefined}>
-                      {formatNumber(item.qtdFinal)}
-                    </span>
-                  </Campo>
-                  <Campo label="Motivo">
-                    {divergencia ? (
-                      <span className="text-warning">{item.motivo ?? "sem motivo"}</span>
-                    ) : (
-                      "—"
-                    )}
-                  </Campo>
-                  <Campo label="Estoque no momento">{formatNumber(item.estoqueDisponivel)}</Campo>
-                  <Campo label="Ruptura">
-                    {t.valorPerdido > 0 ? (
-                      <span className="text-warning">−{formatBRLPreco(t.valorPerdido)}</span>
-                    ) : (
-                      "—"
-                    )}
-                  </Campo>
-                </div>
-              </div>
-            );
-          })}
-
-          <div className="flex flex-wrap items-center justify-end gap-x-8 gap-y-2 rounded-lg bg-muted/50 px-5 py-4 text-sm">
-            <span className="text-muted-foreground">
-              Preliminar:{" "}
-              <span className="font-medium text-foreground tabular-nums">
-                {formatBRLPreco(totais.totalV1)}
-              </span>
-            </span>
-            {totais.valorPerdido > 0 && (
-              <span className="text-muted-foreground">
-                Ruptura:{" "}
-                <span className="font-medium text-warning tabular-nums">
-                  −{formatBRLPreco(totais.valorPerdido)}
-                </span>
-              </span>
-            )}
-            {ticket.bonificacao && (
-              <span className="text-muted-foreground">
-                Bonificação:{" "}
-                <span className="font-medium text-foreground tabular-nums">
-                  {formatBRLPreco(boniTotais.valor)}
-                </span>
-              </span>
-            )}
-            <span className="text-muted-foreground">
-              Total final:{" "}
-              <span className="text-base font-semibold text-foreground tabular-nums">
-                {formatBRLPreco(totais.totalFinal)}
-              </span>
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      <ItensPanel
+        ticketId={ticket.id}
+        itens={ticket.itens}
+        produtos={produtos}
+        linhasEstoque={linhasEstoque}
+        motivos={motivos ?? []}
+        podeEditar={podeEditar}
+      />
 
       <BonificacaoControl ticketId={ticket.id} bonificacao={ticket.bonificacao} produtos={produtos} />
 

@@ -40,6 +40,7 @@ export interface Produto {
 export type TicketStatus = "rascunho" | "em_andamento" | "concluida" | "faturada" | "cancelada";
 
 export interface MockItemNegociacao {
+  id?: string; // id da linha em itens_negociacao (ausente nos itens de exemplo)
   sku: string;
   descricao: string;
   categoria?: string | null;

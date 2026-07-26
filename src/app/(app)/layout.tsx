@@ -34,7 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const usuario = await getUsuarioPerfil();
 
   return (
-    <SidebarProvider>
+    /* Menu começa recolhido (só ícones); o usuário expande clicando no toggle. */
+    <SidebarProvider defaultOpen={false}>
       <AppSidebar role={usuario.role} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">

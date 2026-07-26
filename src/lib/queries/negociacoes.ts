@@ -91,6 +91,7 @@ function formatarTamanho(bytes: number | null): string {
 
 function mapItem(item: TicketRow["itens"][number]): MockItemNegociacao {
   return {
+    id: item.id,
     sku: item.produto?.sku ?? "",
     descricao: item.produto?.descricao ?? "",
     categoria: item.produto?.categoria ?? null,
@@ -307,4 +308,70 @@ export async function salvarBonificacao(
 export async function marcarBonificacaoPaga(supabase: SupabaseClient, negociacaoId: string, paga: boolean) {
   const { error } = await supabase.from("bonificacoes").update({ paga }).eq("negociacao_id", negociacaoId);
   if (error) throw error;
+}
+
+// =========================================================================
+// Edição dos itens de um pedido já criado (corrigir preço, quantidade,
+// motivo; incluir ou remover item).
+// =========================================================================
+
+export interface ItemEditavel {
+  id?: string; // sem id = item novo, a inserir
+  produtoId: string;
+  qtdV1: number;
+  qtdFinal: number;
+  precoNegociado: number;
+  precoTabela: number | null;
+  estoqueDisponivel: number;
+  motivoCodigo: string | null;
+}
+
+// Aplica as alterações da tela de itens: atualiza os existentes, insere os
+// novos e remove os que saíram. Faz o delete por último para que, se algo
+// falhar antes, o pedido não fique sem itens.
+export async function salvarItens(
+  supabase: SupabaseClient,
+  negociacaoId: string,
+  itens: ItemEditavel[],
+  idsRemovidos: string[],
+) {
+  const existentes = itens.filter((item) => item.id);
+  const novos = itens.filter((item) => !item.id);
+
+  for (const item of existentes) {
+    const { error } = await supabase
+      .from("itens_negociacao")
+      .update({
+        produto_id: item.produtoId,
+        qtd_negociada_v1: item.qtdV1,
+        qtd_final: item.qtdFinal,
+        preco_negociado: item.precoNegociado,
+        preco_tabela: item.precoTabela,
+        estoque_disponivel: item.estoqueDisponivel,
+        motivo_codigo: item.motivoCodigo,
+      })
+      .eq("id", item.id!);
+    if (error) throw error;
+  }
+
+  if (novos.length > 0) {
+    const { error } = await supabase.from("itens_negociacao").insert(
+      novos.map((item) => ({
+        negociacao_id: negociacaoId,
+        produto_id: item.produtoId,
+        qtd_negociada_v1: item.qtdV1,
+        qtd_final: item.qtdFinal,
+        preco_negociado: item.precoNegociado,
+        preco_tabela: item.precoTabela,
+        estoque_disponivel: item.estoqueDisponivel,
+        motivo_codigo: item.motivoCodigo,
+      })),
+    );
+    if (error) throw error;
+  }
+
+  if (idsRemovidos.length > 0) {
+    const { error } = await supabase.from("itens_negociacao").delete().in("id", idsRemovidos);
+    if (error) throw error;
+  }
 }
