@@ -1,21 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
+import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = ["/login"];
 
 export async function updateSession(request: NextRequest) {
-  // Supabase ainda nao configurado (.env.local vazio) - deixa passar sem checar
-  // sessao para permitir validar o shell/layout antes das chaves existirem.
-  if (!isSupabaseConfigured) {
-    return NextResponse.next({ request });
-  }
-
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl(),
+    supabaseAnonKey(),
     {
       cookies: {
         getAll() {

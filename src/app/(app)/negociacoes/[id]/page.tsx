@@ -140,7 +140,7 @@ export default async function NegociacaoDetalhePage({
               <div key={item.sku} className="rounded-lg border bg-card p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <SkuTooltip sku={item.sku} descricao={item.descricao} />
+                    <SkuTooltip sku={item.sku} descricao={item.descricao} categoria={item.categoria} />
                     <p className="font-medium">{item.descricao}</p>
                     {divergencia && (
                       <Badge variant="outline" className="bg-warning/10 text-warning">

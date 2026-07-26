@@ -42,6 +42,7 @@ export type TicketStatus = "rascunho" | "em_andamento" | "concluida" | "faturada
 export interface MockItemNegociacao {
   sku: string;
   descricao: string;
+  categoria?: string | null;
   precoTabela: number;
   precoNegociado: number;
   qtdV1: number; // quantidade da negociação preliminar

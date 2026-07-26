@@ -14,7 +14,7 @@ const SELECT_TICKET = `
   vendedor:usuarios!vendedor_id ( nome_completo ),
   itens:itens_negociacao (
     id, qtd_negociada_v1, qtd_final, estoque_disponivel, preco_negociado, preco_tabela, motivo_codigo,
-    produto:produtos ( sku, descricao ),
+    produto:produtos ( sku, descricao, categoria ),
     motivo:motivos_perda ( label )
   ),
   bonificacao:bonificacoes (
@@ -48,7 +48,7 @@ interface TicketRow {
     preco_negociado: number;
     preco_tabela: number | null;
     motivo_codigo: string | null;
-    produto: { sku: string; descricao: string } | null;
+    produto: { sku: string; descricao: string; categoria: string | null } | null;
     motivo: { label: string } | null;
   }[];
   bonificacao: {
@@ -93,6 +93,7 @@ function mapItem(item: TicketRow["itens"][number]): MockItemNegociacao {
   return {
     sku: item.produto?.sku ?? "",
     descricao: item.produto?.descricao ?? "",
+    categoria: item.produto?.categoria ?? null,
     precoTabela: item.preco_tabela ?? 0,
     precoNegociado: item.preco_negociado,
     qtdV1: item.qtd_negociada_v1,

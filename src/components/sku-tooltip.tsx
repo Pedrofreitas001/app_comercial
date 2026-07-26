@@ -1,11 +1,16 @@
 "use client";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { produtoCatalogo } from "@/lib/mock-data";
 
-export function SkuTooltip({ sku, descricao }: { sku: string; descricao: string }) {
-  const produto = produtoCatalogo(sku);
-
+export function SkuTooltip({
+  sku,
+  descricao,
+  categoria,
+}: {
+  sku: string;
+  descricao: string;
+  categoria?: string | null;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -18,7 +23,7 @@ export function SkuTooltip({ sku, descricao }: { sku: string; descricao: string 
       <TooltipContent side="right" className="max-w-64">
         <div className="space-y-1 py-0.5">
           <p className="font-medium">{descricao}</p>
-          {produto?.categoria && <p className="opacity-80">{produto.categoria}</p>}
+          {categoria && <p className="opacity-80">{categoria}</p>}
         </div>
       </TooltipContent>
     </Tooltip>
