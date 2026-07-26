@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { KpiCard } from "@/components/kpi-card";
-import { NegociacaoStatusBadge } from "@/components/negociacao-status-badge";
 import { SkuTooltip } from "@/components/sku-tooltip";
 import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
 import {
@@ -18,6 +17,7 @@ import {
   ticketTotais,
 } from "@/lib/mock-data";
 import { NfForm } from "./nf-form";
+import { StatusControl } from "./status-control";
 import { BonificacaoControl } from "./bonificacao-control";
 import { NotasPanel } from "./notas-panel";
 import { ArquivosPanel } from "./arquivos-panel";
@@ -74,7 +74,7 @@ export default async function NegociacaoDetalhePage({
           </Button>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{ticket.codigo}</h1>
-            <NegociacaoStatusBadge status={ticket.status} />
+            <StatusControl statusInicial={ticket.status} />
           </div>
           <p className="text-sm text-muted-foreground">
             {ticket.cliente} · {ticket.data} · {ticket.vendedor}
