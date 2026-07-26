@@ -9,6 +9,16 @@
 -- item de itens_negociacao como o schema original modelou.
 
 -- =========================================================================
+-- negociacoes.codigo: codigo amigavel (ex.: NEG-2026-0149) que a UI usa em
+-- todo lugar (tabelas, links, busca) e que o schema original nao tinha -
+-- so existia como mock (proximoCodigoTicket() em mock-data.ts).
+-- =========================================================================
+create sequence if not exists negociacao_codigo_seq;
+alter table negociacoes add column if not exists codigo text unique default (
+  'NEG-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('negociacao_codigo_seq')::text, 4, '0')
+);
+
+-- =========================================================================
 -- bonificacoes (1:1 com negociacao) + bonificacao_itens
 -- =========================================================================
 create table bonificacoes (
@@ -102,9 +112,12 @@ select
   n.vendedor_id,
   uv.nome_completo as vendedor_nome,
   n.cliente_id,
+  c.codigo_cliente,
   c.nome as cliente_nome,
   c.rede as cliente_rede,
   c.canal as cliente_canal,
+  c.cidade as cliente_cidade,
+  c.estado as cliente_estado,
   p.id as produto_id,
   p.sku,
   p.descricao as produto_descricao,
