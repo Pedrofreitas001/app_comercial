@@ -16,6 +16,7 @@ const STATUS_OPTIONS: { value: TicketStatus; label: string; className: string }[
   { value: "rascunho", label: "Rascunho", className: "text-muted-foreground" },
   { value: "em_andamento", label: "Em andamento", className: "text-warning" },
   { value: "concluida", label: "Concluída", className: "text-success" },
+  { value: "faturada", label: "Faturada", className: "text-primary" },
   { value: "cancelada", label: "Cancelada", className: "text-destructive" },
 ];
 
@@ -23,6 +24,7 @@ const TRIGGER_TONE: Record<TicketStatus, string> = {
   rascunho: "bg-muted text-muted-foreground border-transparent",
   em_andamento: "bg-warning/15 text-warning border-transparent",
   concluida: "bg-success/15 text-success border-transparent",
+  faturada: "bg-primary/15 text-primary border-transparent",
   cancelada: "bg-destructive/10 text-destructive border-transparent",
 };
 
@@ -33,7 +35,10 @@ export function StatusControl({ statusInicial }: { statusInicial: TicketStatus }
     setStatus(value);
     const label = STATUS_OPTIONS.find((o) => o.value === value)?.label ?? value;
     toast.success(`Status alterado para "${label}"`, {
-      description: "Exemplo — será gravado no banco quando o Supabase estiver conectado.",
+      description:
+        value === "faturada"
+          ? "A partir da fatura, os itens deste pedido passam a abater o estoque disponível."
+          : "Exemplo — será gravado no banco quando o Supabase estiver conectado.",
     });
   }
 

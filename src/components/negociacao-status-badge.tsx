@@ -4,6 +4,7 @@ const STATUS_CONFIG = {
   rascunho: { label: "Rascunho", className: "bg-muted text-muted-foreground" },
   em_andamento: { label: "Em andamento", className: "bg-warning/15 text-warning" },
   concluida: { label: "Concluída", className: "bg-success/15 text-success" },
+  faturada: { label: "Faturada", className: "bg-primary/15 text-primary" },
   cancelada: { label: "Cancelada", className: "bg-destructive/10 text-destructive" },
 } as const;
 

@@ -7,6 +7,7 @@
 import clientesData from "@/lib/data/clientes.json";
 import produtosData from "@/lib/data/produtos.json";
 import estoqueData from "@/lib/data/estoque.json";
+import { formatBRL } from "@/lib/format";
 
 export interface Cliente {
   codigo: string;
@@ -36,7 +37,7 @@ export interface Produto {
   status: "ativo" | "inativo";
 }
 
-export type TicketStatus = "rascunho" | "em_andamento" | "concluida" | "cancelada";
+export type TicketStatus = "rascunho" | "em_andamento" | "concluida" | "faturada" | "cancelada";
 
 export interface MockItemNegociacao {
   sku: string;
@@ -134,6 +135,13 @@ function parseData(data: string) {
   return new Date(ano, mes - 1, dia);
 }
 
+// Dias corridos entre `data` e "hoje" (MOCK_HOJE) — usado para sinalizar
+// negociações paradas (ex.: rascunho sem avanço há muito tempo).
+export function diasDesde(data: string): number {
+  const ms = parseData(MOCK_HOJE).getTime() - parseData(data).getTime();
+  return Math.round(ms / (1000 * 60 * 60 * 24));
+}
+
 // Filtro de período — usado no dashboard e nas listas de negociações e
 // bonificações, sempre calculado a partir de ticket.data (data da negociação).
 export type PeriodoPreset = "todos" | "7d" | "30d" | "mes" | "mesPassado";
@@ -206,6 +214,74 @@ export function ticketTotais(ticket: MockTicket) {
   );
 }
 
+// Dias parados sem avanço para um rascunho ser sinalizado no card "Precisa
+// de atenção" do dashboard — evita alarme falso em rascunhos recém-criados.
+const DIAS_RASCUNHO_PARADO = 3;
+
+export interface AtencaoItem {
+  id: string;
+  ticketId: string;
+  codigo: string;
+  cliente: string;
+  tipo: "ruptura" | "bonificacao" | "rascunho";
+  detalhe: string;
+}
+
+// Reúne, a partir dos mesmos dados já calculados no dashboard, o que
+// precisa de uma ação do vendedor/gestor hoje: ruptura ainda em negociação,
+// bonificação atrasada e rascunho esquecido. Fonte única para o card do
+// dashboard não divergir do que cada tela individual mostra.
+export function listarAtencao(tickets: MockTicket[]): AtencaoItem[] {
+  const itens: AtencaoItem[] = [];
+
+  for (const ticket of tickets) {
+    if (ticket.status === "cancelada") continue;
+
+    if (ticket.status === "em_andamento") {
+      const totais = ticketTotais(ticket);
+      if (totais.valorPerdido > 0) {
+        itens.push({
+          id: `${ticket.id}-ruptura`,
+          ticketId: ticket.id,
+          codigo: ticket.codigo,
+          cliente: ticket.cliente,
+          tipo: "ruptura",
+          detalhe: `${formatBRL(totais.valorPerdido)} em aberto por falta de estoque`,
+        });
+      }
+    }
+
+    if (ticket.status === "rascunho") {
+      const dias = diasDesde(ticket.data);
+      if (dias >= DIAS_RASCUNHO_PARADO) {
+        itens.push({
+          id: `${ticket.id}-rascunho`,
+          ticketId: ticket.id,
+          codigo: ticket.codigo,
+          cliente: ticket.cliente,
+          tipo: "rascunho",
+          detalhe: `Rascunho parado há ${dias} dias sem avanço`,
+        });
+      }
+    }
+
+    if (ticket.bonificacao && bonifStatus(ticket.bonificacao) === "atrasada") {
+      const valor = bonificacaoTotais(ticket.bonificacao).valor;
+      itens.push({
+        id: `${ticket.id}-bonificacao`,
+        ticketId: ticket.id,
+        codigo: ticket.codigo,
+        cliente: ticket.cliente,
+        tipo: "bonificacao",
+        detalhe: `Bonificação de ${formatBRL(valor)} atrasada`,
+      });
+    }
+  }
+
+  const prioridade: Record<AtencaoItem["tipo"], number> = { ruptura: 0, bonificacao: 1, rascunho: 2 };
+  return itens.sort((a, b) => prioridade[a.tipo] - prioridade[b.tipo]);
+}
+
 export const mockVendedores = ["Andre Benah", "Camila Rocha", "Paulo Menezes"];
 
 // Foto do catálogo STRALOG usada nos itens de exemplo. Cada item de negociação
@@ -241,7 +317,7 @@ export const mockTickets: MockTicket[] = [
     canal: "Médio Varejo",
     vendedor: "Andre Benah",
     data: "24/07/2026",
-    status: "concluida",
+    status: "faturada",
     nf: "246511",
     observacoes: "Pedido mensal. Cliente pediu prioridade na linha Divine.",
     notas: [
@@ -319,7 +395,7 @@ export const mockTickets: MockTicket[] = [
     canal: "Distribuidor",
     vendedor: "Camila Rocha",
     data: "24/07/2026",
-    status: "concluida",
+    status: "faturada",
     nf: "246498",
     observacoes: null,
     notas: [],
@@ -405,7 +481,7 @@ export const mockTickets: MockTicket[] = [
     canal: "Pequeno Varejo",
     vendedor: "Andre Benah",
     data: "23/07/2026",
-    status: "concluida",
+    status: "faturada",
     nf: "246402",
     observacoes: null,
     notas: [],
@@ -471,7 +547,7 @@ export const mockTickets: MockTicket[] = [
     canal: "Médio Varejo",
     vendedor: "Andre Benah",
     data: "21/07/2026",
-    status: "concluida",
+    status: "faturada",
     nf: "246301",
     observacoes: null,
     notas: [],
@@ -524,7 +600,7 @@ export const mockTickets: MockTicket[] = [
     canal: "Distribuidor",
     vendedor: "Paulo Menezes",
     data: "20/07/2026",
-    status: "concluida",
+    status: "faturada",
     nf: "246187",
     observacoes: null,
     notas: [],
@@ -665,15 +741,18 @@ export const mockEstoque: MockEstoqueRow[] = estoqueData as MockEstoqueRow[];
 // usamos o estoque JÁ NORMALIZADO (bruto - pendente) para apontar ruptura
 // nas próximas negociações — é a foto mais realista do que sobrou.
 // =========================================================================
-// Soma qtdFinal de negociações não canceladas com data >= última importação
-// de estoque — ou seja, vendas que o STRALOG ainda não teve chance de abater.
+// Soma qtdFinal de negociações FATURADAS com data >= última importação de
+// estoque — ou seja, vendas já faturadas que o STRALOG ainda não teve chance
+// de abater. Só a partir do faturamento a venda vira baixa de estoque: uma
+// negociação apenas "concluída" (acordo fechado, NF ainda não emitida) não
+// reserva nem abate o estoque disponível para as próximas negociações.
 // Canoniza o SKU do item (pode ter sido lançado com um código de entrada)
 // pra não perder venda na contagem por causa do alias.
 export function vendidoDesdeImportacao(sku: string): number {
   const referencia = parseData(mockEstoqueDataReferencia);
   let total = 0;
   for (const ticket of mockTickets) {
-    if (ticket.status === "cancelada" || ticket.status === "rascunho") continue;
+    if (ticket.status !== "faturada") continue;
     if (parseData(ticket.data) < referencia) continue;
     for (const item of ticket.itens) {
       const canonico = produtoCatalogo(item.sku)?.sku ?? item.sku;

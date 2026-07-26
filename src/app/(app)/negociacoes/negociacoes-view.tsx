@@ -19,6 +19,7 @@ const STATUS_OPTIONS = [
   { value: "rascunho", label: "Rascunho" },
   { value: "em_andamento", label: "Em andamento" },
   { value: "concluida", label: "Concluída" },
+  { value: "faturada", label: "Faturada" },
   { value: "cancelada", label: "Cancelada" },
 ];
 

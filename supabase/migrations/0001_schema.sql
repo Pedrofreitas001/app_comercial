@@ -191,11 +191,13 @@ from estoque e
 order by e.sku_entrada, e.data_referencia desc;
 
 -- Normalizacao de estoque: o STRALOG (operador logistico) pode demorar pra
--- dar baixa depois que uma negociacao ja vendeu o produto. Esta view soma o
--- qtd_final de negociacoes nao canceladas/rascunho com data >= a data da
--- ultima importacao daquele SKU - ou seja, vendas que o WMS ainda nao teve
--- chance de abater - e usa isso para "aguardar baixa" e mostrar um estoque
+-- dar baixa depois que uma negociacao ja foi FATURADA. Esta view soma o
+-- qtd_final de negociacoes faturadas com data >= a data da ultima importacao
+-- daquele SKU - ou seja, vendas ja faturadas que o WMS ainda nao teve chance
+-- de abater - e usa isso para "aguardar baixa" e mostrar um estoque
 -- normalizado (bruto - pendente) mais realista do que sobrou de fato.
+-- So a partir do faturamento a venda reserva/abate estoque: uma negociacao
+-- apenas "concluida" (acordo fechado, NF ainda nao emitida) nao impacta.
 create view v_estoque_normalizado with (security_invoker = true) as
 select
   ea.produto_id,
@@ -211,7 +213,7 @@ left join lateral (
   from itens_negociacao i
   join negociacoes n on n.id = i.negociacao_id
   where i.produto_id = ea.produto_id
-    and n.status not in ('cancelada', 'rascunho')
+    and n.status = 'faturada'
     and n.data >= ea.data_referencia
 ) pendente on true;
 
@@ -228,7 +230,9 @@ create table motivos_perda (
 -- =========================================================================
 -- negociacoes
 -- =========================================================================
-create type negociacao_status as enum ('rascunho', 'em_andamento', 'concluida', 'cancelada');
+-- 'faturada' = NF emitida no ERP; e' o unico status que impacta o estoque
+-- (ver v_estoque_normalizado). 'concluida' e' so o acordo comercial fechado.
+create type negociacao_status as enum ('rascunho', 'em_andamento', 'concluida', 'faturada', 'cancelada');
 
 create table negociacoes (
   id uuid primary key default gen_random_uuid(),

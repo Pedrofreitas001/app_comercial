@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiCard } from "@/components/kpi-card";
+import { AtencaoList } from "@/components/dashboard/atencao-list";
 import { MotivoBars } from "@/components/dashboard/motivo-bars";
 import { RankedList } from "@/components/dashboard/ranked-list";
 import { PeriodoFilter } from "@/components/periodo-filter";
@@ -17,6 +18,7 @@ import {
   bonificacaoTotais,
   dataDentroDoPeriodo,
   itemTotais,
+  listarAtencao,
   mockDistribuicaoMotivo,
   mockTickets,
   ticketTotais,
@@ -90,6 +92,7 @@ function aggregate(tickets: MockTicket[]) {
     topSkus: top(porSku),
     topClientes: top(porCliente),
     topVendedores: top(porVendedor),
+    atencao: listarAtencao(ativos),
   };
 }
 
@@ -145,6 +148,16 @@ export function DashboardView() {
           tone="warning"
         />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Precisa de atenção</CardTitle>
+          <CardDescription>Rupturas em aberto, bonificações atrasadas e rascunhos esquecidos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AtencaoList items={agg.atencao} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
