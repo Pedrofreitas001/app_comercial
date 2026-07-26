@@ -30,6 +30,15 @@ import { mockProdutos, type Produto } from "@/lib/mock-data";
 
 const PAGE_SIZE = 15;
 
+const COLUMN_WIDTHS: Record<string, string> = {
+  sku: "w-[10%]",
+  descricao: "w-[32%]",
+  categoria: "w-[16%]",
+  linha: "w-[16%]",
+  preco: "w-[14%]",
+  status: "w-[12%]",
+};
+
 function NovoProdutoDialog({ onCriar }: { onCriar: (produto: Produto) => void }) {
   const [open, setOpen] = useState(false);
   const [sku, setSku] = useState("");
@@ -227,7 +236,7 @@ export function ProdutosTable() {
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
                   {hg.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={COLUMN_WIDTHS[header.column.id]}>
                       {flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}

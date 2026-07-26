@@ -122,14 +122,14 @@ export function BonificacoesView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Pedido</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead>Produtos</TableHead>
-                  <TableHead className="text-center">Peças</TableHead>
-                  <TableHead className="text-center">Faturamento</TableHead>
-                  <TableHead>Data a pagar</TableHead>
-                  <TableHead>Situação</TableHead>
+                  <TableHead className="w-[9%]">Pedido</TableHead>
+                  <TableHead className="w-[15%]">Cliente</TableHead>
+                  <TableHead className="w-[11%]">Vendedor</TableHead>
+                  <TableHead className="w-[19%]">Produtos</TableHead>
+                  <TableHead className="w-[7%] text-center">Peças</TableHead>
+                  <TableHead className="w-[10%] text-center">Faturamento</TableHead>
+                  <TableHead className="w-[12%]">Data a pagar</TableHead>
+                  <TableHead className="w-[17%]">Situação</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -30,6 +30,14 @@ import { mockClientes, type Cliente } from "@/lib/mock-data";
 
 const PAGE_SIZE = 15;
 
+const COLUMN_WIDTHS: Record<string, string> = {
+  codigo: "w-[12%]",
+  nomeResumido: "w-[30%]",
+  redeCanal: "w-[26%]",
+  local: "w-[18%]",
+  status: "w-[14%]",
+};
+
 function NovoClienteDialog({ onCriar }: { onCriar: (cliente: Cliente) => void }) {
   const [open, setOpen] = useState(false);
   const [codigo, setCodigo] = useState("");
@@ -140,11 +148,11 @@ export function ClientesTable() {
         accessorKey: "nomeResumido",
         header: "Nome",
         cell: ({ row }) => (
-          <div className="min-w-[180px] space-y-1">
+          <div className="min-w-0 space-y-1">
             <Input
               defaultValue={row.original.nomeResumido}
               onBlur={(e) => atualizarNomeResumido(row.original.codigo, e.target.value)}
-              className="h-8 w-full font-medium"
+              className="h-8 w-full min-w-0 font-medium"
             />
             <p className="truncate text-xs text-muted-foreground" title={row.original.nome}>
               {row.original.nome}
@@ -241,7 +249,7 @@ export function ClientesTable() {
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
                   {hg.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={COLUMN_WIDTHS[header.column.id]}>
                       {flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}

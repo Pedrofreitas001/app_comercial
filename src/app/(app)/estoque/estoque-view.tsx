@@ -28,6 +28,14 @@ import { estoqueNormalizadoDe, mockEstoque, type MockEstoqueRow } from "@/lib/mo
 
 const PAGE_SIZE = 15;
 
+const COLUMN_WIDTHS: Record<string, string> = {
+  sku: "w-[12%]",
+  produto: "w-[32%]",
+  estoque: "w-[20%]",
+  vencimento: "w-[14%]",
+  situacao: "w-[22%]",
+};
+
 function statusEstoque(quantidade: number) {
   if (quantidade === 0) return { label: "Zerado", className: "bg-destructive/10 text-destructive" };
   if (quantidade <= 30) return { label: "Baixo", className: "bg-warning/10 text-warning" };
@@ -141,7 +149,7 @@ export function EstoqueView() {
                     render={<Badge variant="outline" className="cursor-help bg-destructive/10 text-destructive" />}
                   >
                     <TriangleAlert data-icon="inline-start" />
-                    Ruptura · déficit {formatNumber(norm.deficit)} un.
+                    Ruptura
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-64">
                     Já provisionamos {formatNumber(norm.pendente)} un. vendidas, {formatNumber(norm.deficit)} un.
@@ -156,7 +164,7 @@ export function EstoqueView() {
                       render={<Badge variant="outline" className="cursor-help bg-warning/10 text-warning" />}
                     >
                       <Clock data-icon="inline-start" />
-                      Aguardando baixa · {formatNumber(norm.pendente)} un.
+                      Aguardando baixa
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-64">
                       {formatNumber(norm.pendente)} un. já negociadas desde a última importação do STRALOG
@@ -236,7 +244,10 @@ export function EstoqueView() {
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
                   {hg.headers.map((header) => (
-                    <TableHead key={header.id} className={header.id === "estoque" ? "text-center" : undefined}>
+                    <TableHead
+                      key={header.id}
+                      className={`${COLUMN_WIDTHS[header.id] ?? ""} ${header.id === "estoque" ? "text-center" : ""}`}
+                    >
                       {flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}

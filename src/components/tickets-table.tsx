@@ -17,13 +17,13 @@ export function TicketsTable({ tickets }: { tickets: MockTicket[] }) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Código</TableHead>
-          <TableHead>Cliente</TableHead>
-          <TableHead>Vendedor</TableHead>
-          <TableHead>Data</TableHead>
-          <TableHead className="text-center">Total</TableHead>
-          <TableHead>NF</TableHead>
-          <TableHead>Status</TableHead>
+          <TableHead className="w-[10%]">Código</TableHead>
+          <TableHead className="w-[27%]">Cliente</TableHead>
+          <TableHead className="w-[14%]">Vendedor</TableHead>
+          <TableHead className="w-[9%]">Data</TableHead>
+          <TableHead className="w-[11%] text-center">Total</TableHead>
+          <TableHead className="w-[8%]">NF</TableHead>
+          <TableHead className="w-[21%]">Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
