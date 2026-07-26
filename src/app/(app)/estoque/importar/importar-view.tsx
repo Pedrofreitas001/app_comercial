@@ -11,10 +11,10 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { parseEstoqueStralog, type EstoqueParseResult } from "@/lib/import/estoque-parser";
 import { formatNumber } from "@/lib/format";
-import { produtoCatalogo } from "@/lib/mock-data";
 
-export function ImportarEstoqueView() {
+export function ImportarEstoqueView({ codigosCatalogo }: { codigosCatalogo: string[] }) {
   const router = useRouter();
+  const catalogo = new Set(codigosCatalogo);
   const inputRef = useRef<HTMLInputElement>(null);
   const [arrastando, setArrastando] = useState(false);
   const [processando, setProcessando] = useState(false);
@@ -51,20 +51,37 @@ export function ImportarEstoqueView() {
     if (file) processarArquivo(file);
   }
 
-  function confirmarImportacao() {
-    if (!resultado) return;
+  async function confirmarImportacao() {
+    if (!resultado || !nomeArquivo) return;
     setConfirmando(true);
-    setTimeout(() => {
-      setConfirmando(false);
-      toast.success(`Estoque atualizado — ${resultado.agregados.length} SKUs`, {
-        description: "Exemplo — a gravação real na tabela estoque acontece quando o Supabase estiver conectado.",
+    try {
+      const response = await fetch("/api/estoque/importar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ arquivoNome: nomeArquivo, linhas: resultado.agregados }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Falha ao importar o estoque.");
+
+      toast.success(`Estoque atualizado — ${data.importadas} SKUs`, {
+        description:
+          data.naoEncontrados > 0
+            ? `${data.naoEncontrados} SKU(s) não encontrados no catálogo foram ignorados.`
+            : undefined,
       });
       router.push("/estoque");
-    }, 500);
+      router.refresh();
+    } catch (e) {
+      toast.error("Não foi possível importar o estoque", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    } finally {
+      setConfirmando(false);
+    }
   }
 
   const naoEncontrados = resultado
-    ? resultado.agregados.filter((a) => !produtoCatalogo(a.codigo))
+    ? resultado.agregados.filter((a) => !catalogo.has(a.codigo))
     : [];
 
   return (
@@ -176,7 +193,7 @@ export function ImportarEstoqueView() {
                   </TableHeader>
                   <TableBody>
                     {resultado.agregados.map((row) => {
-                      const encontrado = Boolean(produtoCatalogo(row.codigo));
+                      const encontrado = catalogo.has(row.codigo);
                       return (
                         <TableRow key={row.codigo}>
                           <TableCell className="font-mono text-xs text-muted-foreground">{row.codigo}</TableCell>

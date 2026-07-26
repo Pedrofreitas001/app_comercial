@@ -1,9 +1,18 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
 import { ImportarEstoqueView } from "./importar-view";
 
-export default function ImportarEstoquePage() {
+export default async function ImportarEstoquePage() {
+  const supabase = await createClient();
+  const { data: produtos } = await supabase.from("produtos").select("sku, sku_entrada");
+  const codigosCatalogo = new Set<string>();
+  for (const p of produtos ?? []) {
+    codigosCatalogo.add(p.sku);
+    for (const entrada of p.sku_entrada ?? []) codigosCatalogo.add(entrada);
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -22,7 +31,7 @@ export default function ImportarEstoquePage() {
           Suba o export do STRALOG para atualizar a posição de estoque usada nas negociações.
         </p>
       </div>
-      <ImportarEstoqueView />
+      <ImportarEstoqueView codigosCatalogo={[...codigosCatalogo]} />
     </div>
   );
 }
