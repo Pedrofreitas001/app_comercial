@@ -18,27 +18,25 @@ export function KpiCard({
   return (
     <Card
       className={cn(
-        "gap-2 border-l-2",
+        "gap-1.5 border-l-2",
         tone === "warning" && "border-l-warning",
         tone === "success" && "border-l-success",
         tone === "default" && "border-l-primary/25",
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
-        <CardTitle className="text-[13px] font-medium text-muted-foreground">{label}</CardTitle>
-        <div
+        <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
+        <Icon
           className={cn(
-            "flex size-7 items-center justify-center rounded-full",
-            tone === "warning" && "bg-warning/10 text-warning",
-            tone === "success" && "bg-success/10 text-success",
-            tone === "default" && "bg-primary/8 text-primary",
+            "size-4",
+            tone === "warning" && "text-warning",
+            tone === "success" && "text-success",
+            tone === "default" && "text-muted-foreground/60",
           )}
-        >
-          <Icon className="size-3.5" />
-        </div>
+        />
       </CardHeader>
       <CardContent>
-        <div className="text-[28px] font-bold tracking-tight tabular-nums">{value}</div>
+        <div className="text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
