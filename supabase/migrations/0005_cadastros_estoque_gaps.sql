@@ -27,11 +27,22 @@ create index idx_produtos_sku_entrada on produtos using gin (sku_entrada);
 alter table estoque add column if not exists unidade text;
 alter table estoque add column if not exists vencimento_proximo date;
 
+-- v_estoque_atual usava "select e.*", e o Postgres fixa a lista de colunas
+-- de um "*" no momento em que a view e' criada - colunas novas na tabela
+-- (unidade, vencimento_proximo) nao aparecem nela sem recriar a view.
+-- v_estoque_normalizado depende de v_estoque_atual, por isso cai primeiro.
+drop view if exists v_estoque_normalizado;
+drop view if exists v_estoque_atual;
+
+create view v_estoque_atual with (security_invoker = true) as
+select distinct on (e.sku_entrada)
+  e.*
+from estoque e
+order by e.sku_entrada, e.data_referencia desc;
+
 -- v_estoque_normalizado: adiciona os dois campos acima e os indicadores de
--- ruptura confirmada (deficit/em_ruptura) que a tela de Estoque usa - so'
--- pode ANEXAR colunas no final (create or replace view nao deixa reordenar
--- as que ja existem).
-create or replace view v_estoque_normalizado with (security_invoker = true) as
+-- ruptura confirmada (deficit/em_ruptura) que a tela de Estoque usa.
+create view v_estoque_normalizado with (security_invoker = true) as
 select
   ea.produto_id,
   ea.sku_entrada,
