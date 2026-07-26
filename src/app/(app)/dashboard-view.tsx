@@ -19,8 +19,6 @@ import {
   dataDentroDoPeriodo,
   itemTotais,
   listarAtencao,
-  mockDistribuicaoMotivo,
-  mockTickets,
   ticketTotais,
   type MockTicket,
   type PeriodoPreset,
@@ -76,6 +74,19 @@ function aggregate(tickets: MockTicket[]) {
   const top = (map: Map<string, { label: string; valor: number }>) =>
     [...map.values()].sort((a, b) => b.valor - a.valor).slice(0, 5);
 
+  const contagemMotivo = new Map<string, number>();
+  let totalDivergencias = 0;
+  for (const ticket of ativos) {
+    for (const item of ticket.itens) {
+      if (item.qtdV1 === item.qtdFinal || !item.motivo) continue;
+      totalDivergencias += 1;
+      contagemMotivo.set(item.motivo, (contagemMotivo.get(item.motivo) ?? 0) + 1);
+    }
+  }
+  const distribuicaoMotivo = [...contagemMotivo.entries()]
+    .map(([motivo, qtd]) => ({ motivo, valor: Math.round((qtd / totalDivergencias) * 100) }))
+    .sort((a, b) => b.valor - a.valor);
+
   return {
     totalV1,
     totalFinal,
@@ -93,15 +104,16 @@ function aggregate(tickets: MockTicket[]) {
     topClientes: top(porCliente),
     topVendedores: top(porVendedor),
     atencao: listarAtencao(ativos),
+    distribuicaoMotivo,
   };
 }
 
-export function DashboardView() {
+export function DashboardView({ todosTickets }: { todosTickets: MockTicket[] }) {
   const [periodo, setPeriodo] = useState<PeriodoPreset>("todos");
 
   const tickets = useMemo(
-    () => mockTickets.filter((t) => dataDentroDoPeriodo(t.data, periodo)),
-    [periodo],
+    () => todosTickets.filter((t) => dataDentroDoPeriodo(t.data, periodo)),
+    [todosTickets, periodo],
   );
   const agg = useMemo(() => aggregate(tickets), [tickets]);
   const conversao = agg.totalV1 > 0 ? Math.round((agg.totalFinal / agg.totalV1) * 100) : 0;
@@ -207,7 +219,7 @@ export function DashboardView() {
             <CardDescription>Quando a quantidade final difere da negociada</CardDescription>
           </CardHeader>
           <CardContent>
-            <MotivoBars data={mockDistribuicaoMotivo} />
+            <MotivoBars data={agg.distribuicaoMotivo} />
           </CardContent>
         </Card>
       </div>

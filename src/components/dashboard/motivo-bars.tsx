@@ -2,6 +2,14 @@ export function MotivoBars({ data }: { data: { motivo: string; valor: number }[]
   const total = data.reduce((acc, item) => acc + item.valor, 0);
   const max = Math.max(...data.map((item) => item.valor), 1);
 
+  if (data.length === 0) {
+    return (
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        Sem divergências registradas neste período.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {data.map((item) => {

@@ -127,18 +127,20 @@ export const MOTIVOS = [
   "Outro",
 ] as const;
 
-// "Hoje" fixo dos dados de exemplo, para os status de bonificação serem estáveis.
-export const MOCK_HOJE = "25/07/2026";
-
 function parseData(data: string) {
   const [dia, mes, ano] = data.split("/").map(Number);
   return new Date(ano, mes - 1, dia);
 }
 
-// Dias corridos entre `data` e "hoje" (MOCK_HOJE) — usado para sinalizar
-// negociações paradas (ex.: rascunho sem avanço há muito tempo).
+function hoje(): Date {
+  const agora = new Date();
+  return new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+}
+
+// Dias corridos entre `data` e hoje — usado para sinalizar negociações
+// paradas (ex.: rascunho sem avanço há muito tempo).
 export function diasDesde(data: string): number {
-  const ms = parseData(MOCK_HOJE).getTime() - parseData(data).getTime();
+  const ms = hoje().getTime() - parseData(data).getTime();
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
 
@@ -157,22 +159,22 @@ export const PERIODO_OPTIONS: { value: PeriodoPreset; label: string }[] = [
 export function dataDentroDoPeriodo(data: string, preset: PeriodoPreset): boolean {
   if (preset === "todos") return true;
   const d = parseData(data);
-  const hoje = parseData(MOCK_HOJE);
+  const hj = hoje();
   if (preset === "7d") {
-    const inicio = new Date(hoje);
-    inicio.setDate(hoje.getDate() - 6);
-    return d >= inicio && d <= hoje;
+    const inicio = new Date(hj);
+    inicio.setDate(hj.getDate() - 6);
+    return d >= inicio && d <= hj;
   }
   if (preset === "30d") {
-    const inicio = new Date(hoje);
-    inicio.setDate(hoje.getDate() - 29);
-    return d >= inicio && d <= hoje;
+    const inicio = new Date(hj);
+    inicio.setDate(hj.getDate() - 29);
+    return d >= inicio && d <= hj;
   }
   if (preset === "mes") {
-    return d.getFullYear() === hoje.getFullYear() && d.getMonth() === hoje.getMonth();
+    return d.getFullYear() === hj.getFullYear() && d.getMonth() === hj.getMonth();
   }
   if (preset === "mesPassado") {
-    const mesPassado = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const mesPassado = new Date(hj.getFullYear(), hj.getMonth() - 1, 1);
     return d.getFullYear() === mesPassado.getFullYear() && d.getMonth() === mesPassado.getMonth();
   }
   return true;
@@ -183,7 +185,7 @@ export type BonifStatus = "pago" | "pendente" | "atrasada";
 export function bonifStatus(bonificacao: MockBonificacao | null): BonifStatus | null {
   if (!bonificacao || bonificacao.itens.length === 0) return null;
   if (bonificacao.paga) return "pago";
-  if (bonificacao.dataPagamento && parseData(bonificacao.dataPagamento) < parseData(MOCK_HOJE)) {
+  if (bonificacao.dataPagamento && parseData(bonificacao.dataPagamento) < hoje()) {
     return "atrasada";
   }
   return "pendente";
