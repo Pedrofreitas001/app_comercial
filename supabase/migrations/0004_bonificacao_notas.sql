@@ -92,15 +92,17 @@ create policy bonificacao_itens_delete on bonificacao_itens
 -- =========================================================================
 -- itens_negociacao: remove os campos de bonificacao por-item, que a UI
 -- nunca usou dessa forma (ver bonificacoes/bonificacao_itens acima).
+-- A view precisa cair ANTES das colunas, porque depende delas.
 -- =========================================================================
+drop view if exists v_itens_negociacao_enriched;
+
 alter table itens_negociacao drop constraint if exists chk_bonificada_leq_final;
 alter table itens_negociacao drop column if exists qtd_bonificada;
 alter table itens_negociacao drop column if exists preco_base_bonificacao;
 alter table itens_negociacao drop column if exists data_pagamento_bonificacao;
 alter table itens_negociacao drop column if exists bonificacao_paga;
 
--- v_itens_negociacao_enriched precisa ser recriada sem essas colunas.
-drop view if exists v_itens_negociacao_enriched;
+-- Recria a view sem essas colunas.
 create view v_itens_negociacao_enriched with (security_invoker = true) as
 select
   i.id,
