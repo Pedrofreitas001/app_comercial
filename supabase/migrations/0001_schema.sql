@@ -190,33 +190,6 @@ select distinct on (e.sku_entrada)
 from estoque e
 order by e.sku_entrada, e.data_referencia desc;
 
--- Normalizacao de estoque: o STRALOG (operador logistico) pode demorar pra
--- dar baixa depois que uma negociacao ja foi FATURADA. Esta view soma o
--- qtd_final de negociacoes faturadas com data >= a data da ultima importacao
--- daquele SKU - ou seja, vendas ja faturadas que o WMS ainda nao teve chance
--- de abater - e usa isso para "aguardar baixa" e mostrar um estoque
--- normalizado (bruto - pendente) mais realista do que sobrou de fato.
--- So a partir do faturamento a venda reserva/abate estoque: uma negociacao
--- apenas "concluida" (acordo fechado, NF ainda nao emitida) nao impacta.
-create view v_estoque_normalizado with (security_invoker = true) as
-select
-  ea.produto_id,
-  ea.sku_entrada,
-  ea.data_referencia,
-  ea.quantidade_disponivel as bruto,
-  coalesce(pendente.qtd, 0) as pendente,
-  greatest(ea.quantidade_disponivel - coalesce(pendente.qtd, 0), 0) as normalizado,
-  coalesce(pendente.qtd, 0) > 0 as aguardando_baixa
-from v_estoque_atual ea
-left join lateral (
-  select sum(i.qtd_final) as qtd
-  from itens_negociacao i
-  join negociacoes n on n.id = i.negociacao_id
-  where i.produto_id = ea.produto_id
-    and n.status = 'faturada'
-    and n.data >= ea.data_referencia
-) pendente on true;
-
 -- =========================================================================
 -- motivos_perda (lookup, gerenciavel em Configuracoes - nao e enum fixo)
 -- =========================================================================
@@ -315,6 +288,38 @@ create table itens_negociacao (
 create index idx_itens_negociacao on itens_negociacao(negociacao_id);
 create index idx_itens_produto on itens_negociacao(produto_id);
 create index idx_itens_demanda_perdida on itens_negociacao(demanda_perdida) where demanda_perdida > 0;
+
+-- =========================================================================
+-- v_estoque_normalizado
+-- O STRALOG (operador logistico) pode demorar pra dar baixa depois que uma
+-- negociacao ja foi FATURADA. Esta view soma o qtd_final de negociacoes
+-- faturadas com data >= a data da ultima importacao daquele SKU - ou seja,
+-- vendas ja faturadas que o WMS ainda nao teve chance de abater - e usa
+-- isso para "aguardar baixa" e mostrar um estoque normalizado
+-- (bruto - pendente) mais realista do que sobrou de fato.
+-- So a partir do faturamento a venda reserva/abate estoque: uma negociacao
+-- apenas "concluida" (acordo fechado, NF ainda nao emitida) nao impacta.
+-- Precisa vir depois de negociacoes/itens_negociacao existirem (por isso
+-- fica aqui, e nao junto das outras views de estoque, la em cima).
+-- =========================================================================
+create view v_estoque_normalizado with (security_invoker = true) as
+select
+  ea.produto_id,
+  ea.sku_entrada,
+  ea.data_referencia,
+  ea.quantidade_disponivel as bruto,
+  coalesce(pendente.qtd, 0) as pendente,
+  greatest(ea.quantidade_disponivel - coalesce(pendente.qtd, 0), 0) as normalizado,
+  coalesce(pendente.qtd, 0) > 0 as aguardando_baixa
+from v_estoque_atual ea
+left join lateral (
+  select sum(i.qtd_final) as qtd
+  from itens_negociacao i
+  join negociacoes n on n.id = i.negociacao_id
+  where i.produto_id = ea.produto_id
+    and n.status = 'faturada'
+    and n.data >= ea.data_referencia
+) pendente on true;
 
 -- =========================================================================
 -- arquivos
