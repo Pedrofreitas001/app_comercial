@@ -26,7 +26,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { mockClientes, type Cliente } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
+import type { ClienteRow } from "@/lib/queries/cadastros";
 
 const PAGE_SIZE = 15;
 
@@ -38,38 +39,59 @@ const COLUMN_WIDTHS: Record<string, string> = {
   status: "w-[14%]",
 };
 
-function NovoClienteDialog({ onCriar }: { onCriar: (cliente: Cliente) => void }) {
+function NovoClienteDialog({ onCriar }: { onCriar: (cliente: ClienteRow) => void }) {
   const [open, setOpen] = useState(false);
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
   const [nomeResumido, setNomeResumido] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
+  const [salvando, setSalvando] = useState(false);
 
-  function salvar() {
+  async function salvar() {
     if (!codigo.trim() || !nome.trim()) {
       toast.error("Informe pelo menos código e razão social.");
       return;
     }
+    setSalvando(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("clientes")
+      .insert({
+        codigo_cliente: codigo.trim(),
+        nome: nome.trim(),
+        nome_resumido: nomeResumido.trim() || nome.trim(),
+        cidade: cidade.trim() || null,
+        estado: estado.trim() || null,
+        status: "ativo",
+      })
+      .select("id, codigo_cliente, nome, nome_resumido, nome_fantasia, rede, canal, cidade, estado, cnpj, vendedor_nome_origem, gerente_nome_origem, tipo_frete, tabela_preco, status")
+      .single();
+    setSalvando(false);
+
+    if (error || !data) {
+      toast.error("Não foi possível cadastrar o cliente", { description: error?.message });
+      return;
+    }
+
     onCriar({
-      codigo: codigo.trim(),
-      nome: nome.trim(),
-      nomeResumido: nomeResumido.trim() || nome.trim(),
-      nomeFantasia: null,
-      rede: null,
-      canal: null,
-      cidade: cidade.trim() || null,
-      estado: estado.trim() || null,
-      cnpj: null,
-      vendedorNomeOrigem: null,
-      gerenteNomeOrigem: null,
-      tipoFrete: null,
-      tabelaPreco: null,
-      status: "ativo",
+      id: data.id,
+      codigo: data.codigo_cliente,
+      nome: data.nome,
+      nomeResumido: data.nome_resumido ?? data.nome,
+      nomeFantasia: data.nome_fantasia,
+      rede: data.rede,
+      canal: data.canal,
+      cidade: data.cidade,
+      estado: data.estado,
+      cnpj: data.cnpj,
+      vendedorNomeOrigem: data.vendedor_nome_origem,
+      gerenteNomeOrigem: data.gerente_nome_origem,
+      tipoFrete: data.tipo_frete,
+      tabelaPreco: data.tabela_preco,
+      status: data.status,
     });
-    toast.success(`Cliente ${codigo} cadastrado`, {
-      description: "Exemplo — será gravado no banco quando o Supabase estiver conectado.",
-    });
+    toast.success(`Cliente ${codigo} cadastrado`);
     setCodigo("");
     setNome("");
     setNomeResumido("");
@@ -119,23 +141,28 @@ function NovoClienteDialog({ onCriar }: { onCriar: (cliente: Cliente) => void })
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={salvar}>Salvar</Button>
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Salvando..." : "Salvar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-export function ClientesTable() {
-  const [clientes, setClientes] = useState<Cliente[]>(mockClientes);
+export function ClientesTable({ clientesIniciais }: { clientesIniciais: ClienteRow[] }) {
+  const [clientes, setClientes] = useState<ClienteRow[]>(clientesIniciais);
   const [busca, setBusca] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
 
-  function atualizarNomeResumido(codigo: string, valor: string) {
-    setClientes((prev) => prev.map((c) => (c.codigo === codigo ? { ...c, nomeResumido: valor } : c)));
+  async function atualizarNomeResumido(id: string, valor: string) {
+    setClientes((prev) => prev.map((c) => (c.id === id ? { ...c, nomeResumido: valor } : c)));
+    const supabase = createClient();
+    const { error } = await supabase.from("clientes").update({ nome_resumido: valor }).eq("id", id);
+    if (error) toast.error("Não foi possível salvar o nome resumido", { description: error.message });
   }
 
-  const columns = useMemo<ColumnDef<Cliente>[]>(
+  const columns = useMemo<ColumnDef<ClienteRow>[]>(
     () => [
       {
         accessorKey: "codigo",
@@ -151,7 +178,7 @@ export function ClientesTable() {
           <div className="min-w-0 space-y-1">
             <Input
               defaultValue={row.original.nomeResumido}
-              onBlur={(e) => atualizarNomeResumido(row.original.codigo, e.target.value)}
+              onBlur={(e) => atualizarNomeResumido(row.original.id, e.target.value)}
               className="h-8 w-full min-w-0 font-medium"
             />
             <p className="truncate text-xs text-muted-foreground" title={row.original.nome}>
@@ -213,7 +240,7 @@ export function ClientesTable() {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: (row, _columnId, value) => {
-      const c = row.original as Cliente;
+      const c = row.original as ClienteRow;
       const alvo = `${c.codigo} ${c.nome} ${c.nomeResumido} ${c.rede ?? ""} ${c.cidade ?? ""}`.toLowerCase();
       return alvo.includes(String(value).toLowerCase());
     },

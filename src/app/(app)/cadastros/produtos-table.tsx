@@ -26,7 +26,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { mockProdutos, type Produto } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
+import type { ProdutoRow } from "@/lib/queries/cadastros";
 
 const PAGE_SIZE = 15;
 
@@ -39,31 +40,52 @@ const COLUMN_WIDTHS: Record<string, string> = {
   status: "w-[12%]",
 };
 
-function NovoProdutoDialog({ onCriar }: { onCriar: (produto: Produto) => void }) {
+function NovoProdutoDialog({ onCriar }: { onCriar: (produto: ProdutoRow) => void }) {
   const [open, setOpen] = useState(false);
   const [sku, setSku] = useState("");
   const [descricao, setDescricao] = useState("");
   const [categoria, setCategoria] = useState("");
   const [preco, setPreco] = useState("");
+  const [salvando, setSalvando] = useState(false);
 
-  function salvar() {
+  async function salvar() {
     if (!sku.trim() || !descricao.trim()) {
       toast.error("Informe pelo menos SKU e descrição.");
       return;
     }
+    setSalvando(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("produtos")
+      .insert({
+        sku: sku.trim(),
+        sku_entrada: [sku.trim()],
+        descricao: descricao.trim(),
+        categoria: categoria.trim() || null,
+        preco: preco ? Number(preco) : null,
+        status: "ativo",
+      })
+      .select("id, sku, sku_entrada, descricao, categoria, linha, marca, preco, status")
+      .single();
+    setSalvando(false);
+
+    if (error || !data) {
+      toast.error("Não foi possível cadastrar o produto", { description: error?.message });
+      return;
+    }
+
     onCriar({
-      sku: sku.trim(),
-      skuEntrada: [sku.trim()],
-      descricao: descricao.trim(),
-      categoria: categoria.trim() || null,
-      linha: null,
-      marca: null,
-      preco: preco ? Number(preco) : null,
-      status: "ativo",
+      id: data.id,
+      sku: data.sku,
+      skuEntrada: data.sku_entrada ?? [],
+      descricao: data.descricao,
+      categoria: data.categoria,
+      linha: data.linha,
+      marca: data.marca,
+      preco: data.preco,
+      status: data.status,
     });
-    toast.success(`Produto ${sku} cadastrado`, {
-      description: "Exemplo — será gravado no banco quando o Supabase estiver conectado.",
-    });
+    toast.success(`Produto ${sku} cadastrado`);
     setSku("");
     setDescricao("");
     setCategoria("");
@@ -110,25 +132,29 @@ function NovoProdutoDialog({ onCriar }: { onCriar: (produto: Produto) => void })
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={salvar}>Salvar</Button>
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Salvando..." : "Salvar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-export function ProdutosTable() {
-  const [produtos, setProdutos] = useState<Produto[]>(mockProdutos);
+export function ProdutosTable({ produtosIniciais }: { produtosIniciais: ProdutoRow[] }) {
+  const [produtos, setProdutos] = useState<ProdutoRow[]>(produtosIniciais);
   const [busca, setBusca] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
 
-  function atualizarPreco(sku: string, valor: string) {
-    setProdutos((prev) =>
-      prev.map((p) => (p.sku === sku ? { ...p, preco: valor === "" ? null : Number(valor) } : p)),
-    );
+  async function atualizarPreco(id: string, valor: string) {
+    const preco = valor === "" ? null : Number(valor);
+    setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, preco } : p)));
+    const supabase = createClient();
+    const { error } = await supabase.from("produtos").update({ preco }).eq("id", id);
+    if (error) toast.error("Não foi possível salvar o preço", { description: error.message });
   }
 
-  const columns = useMemo<ColumnDef<Produto>[]>(
+  const columns = useMemo<ColumnDef<ProdutoRow>[]>(
     () => [
       {
         accessorKey: "sku",
@@ -165,7 +191,7 @@ export function ProdutosTable() {
               type="number"
               step="0.01"
               defaultValue={row.original.preco ?? ""}
-              onBlur={(e) => atualizarPreco(row.original.sku, e.target.value)}
+              onBlur={(e) => atualizarPreco(row.original.id, e.target.value)}
               placeholder="—"
               className="h-8 w-28 text-center"
             />
@@ -200,7 +226,7 @@ export function ProdutosTable() {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: (row, _columnId, value) => {
-      const p = row.original as Produto;
+      const p = row.original as ProdutoRow;
       const alvo = `${p.sku} ${p.descricao} ${p.categoria ?? ""} ${p.linha ?? ""}`.toLowerCase();
       return alvo.includes(String(value).toLowerCase());
     },

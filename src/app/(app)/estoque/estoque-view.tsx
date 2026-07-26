@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
-import { estoqueNormalizadoDe, mockEstoque, type MockEstoqueRow } from "@/lib/mock-data";
+import type { LinhaEstoque } from "@/lib/queries/estoque";
 
 const PAGE_SIZE = 15;
 
@@ -42,10 +42,7 @@ function statusEstoque(quantidade: number) {
   return { label: "Disponível", className: "bg-success/10 text-success" };
 }
 
-interface Linha {
-  row: MockEstoqueRow;
-  norm: ReturnType<typeof estoqueNormalizadoDe>;
-}
+type Linha = LinhaEstoque;
 
 const SITUACAO_OPTIONS = [
   { value: "todas", label: "Todas as situações" },
@@ -56,20 +53,19 @@ const SITUACAO_OPTIONS = [
   { value: "disponivel", label: "Disponível" },
 ];
 
-export function EstoqueView() {
+export function EstoqueView({ linhas }: { linhas: LinhaEstoque[] }) {
   const [busca, setBusca] = useState("");
   const [situacao, setSituacao] = useState("todas");
   const [pageIndex, setPageIndex] = useState(0);
 
   const dados = useMemo<Linha[]>(() => {
-    const linhas = mockEstoque.map((row) => ({ row, norm: estoqueNormalizadoDe(row.sku) }));
     // alertas (ruptura, depois aguardando baixa) sempre no topo, pra nao
     // precisar procurar entre centenas de SKUs disponiveis.
-    return linhas.sort((a, b) => {
+    return [...linhas].sort((a, b) => {
       const peso = (l: Linha) => (l.norm.emRuptura ? 2 : l.norm.aguardandoBaixa ? 1 : 0);
       return peso(b) - peso(a) || a.row.sku.localeCompare(b.row.sku);
     });
-  }, []);
+  }, [linhas]);
 
   function bucketDe(norm: Linha["norm"]) {
     if (norm.emRuptura) return "ruptura";

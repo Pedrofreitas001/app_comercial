@@ -1,9 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { createClient } from "@/lib/supabase/server";
+import { getClientes, getProdutos } from "@/lib/queries/cadastros";
 import { ClientesTable } from "./clientes-table";
 import { ProdutosTable } from "./produtos-table";
 
-export default function CadastrosPage() {
+export default async function CadastrosPage() {
+  const supabase = await createClient();
+  const [clientes, produtos] = await Promise.all([getClientes(supabase), getProdutos(supabase)]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -23,11 +28,11 @@ export default function CadastrosPage() {
         </TabsList>
 
         <TabsContent value="clientes">
-          <ClientesTable />
+          <ClientesTable clientesIniciais={clientes} />
         </TabsContent>
 
         <TabsContent value="produtos">
-          <ProdutosTable />
+          <ProdutosTable produtosIniciais={produtos} />
         </TabsContent>
       </Tabs>
     </div>

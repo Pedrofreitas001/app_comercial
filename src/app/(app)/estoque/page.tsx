@@ -4,11 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/kpi-card";
 import { formatNumber } from "@/lib/format";
-import { estoqueNormalizadoDe, mockEstoque, mockEstoqueDataReferencia } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { getEstoqueNormalizado } from "@/lib/queries/estoque";
 import { EstoqueView } from "./estoque-view";
 
-export default function EstoquePage() {
-  const normalizados = mockEstoque.map((row) => estoqueNormalizadoDe(row.sku));
+export default async function EstoquePage() {
+  const supabase = await createClient();
+  const { linhas, ultimaAtualizacao } = await getEstoqueNormalizado(supabase);
+  const normalizados = linhas.map((l) => l.norm);
   const totalUnidades = normalizados.reduce((acc, n) => acc + n.normalizado, 0);
   const aguardandoBaixa = normalizados.filter((n) => n.aguardandoBaixa && !n.emRuptura);
   const pendenteTotal = aguardandoBaixa.reduce((acc, n) => acc + n.pendente, 0);
@@ -64,13 +67,13 @@ export default function EstoquePage() {
         />
         <KpiCard
           label="Última atualização"
-          value={mockEstoqueDataReferencia}
+          value={ultimaAtualizacao ?? "—"}
           hint="importação diária do STRALOG"
           icon={CalendarClock}
         />
       </div>
 
-      <EstoqueView />
+      <EstoqueView linhas={linhas} />
     </div>
   );
 }
