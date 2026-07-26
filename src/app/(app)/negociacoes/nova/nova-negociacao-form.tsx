@@ -19,18 +19,12 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  MOTIVO_SEM_ESTOQUE,
-  MOTIVOS,
-  estoqueDisponivelDe,
-  estoqueNormalizadoDe,
-  mockClientes,
-  mockProdutos,
-  mockVendedores,
-  produtoCatalogo,
-  proximoCodigoTicket,
-} from "@/lib/mock-data";
+import { MOTIVO_SEM_ESTOQUE, MOTIVOS, type EstoqueNormalizado } from "@/lib/mock-data";
 import { formatBRLPreco, formatNumber } from "@/lib/format";
+import { createClient } from "@/lib/supabase/client";
+import { criarNegociacao } from "@/lib/queries/negociacoes";
+import type { ClienteRow, ProdutoRow } from "@/lib/queries/cadastros";
+import type { LinhaEstoque } from "@/lib/queries/estoque";
 
 interface ItemForm {
   key: string;
@@ -65,28 +59,59 @@ function novoItemBoni(): BonifItemForm {
   return { key: Math.random().toString(36).slice(2), sku: "", qtd: 1, precoBase: 0 };
 }
 
-const clienteOptions = mockClientes.map((c) => ({
-  value: c.codigo,
-  label: c.nomeResumido,
-  sublabel: [c.cidade && c.estado ? `${c.cidade}/${c.estado}` : null, c.codigo].filter(Boolean).join(" · "),
-}));
+const ESTOQUE_VAZIO: EstoqueNormalizado = {
+  bruto: 0,
+  pendente: 0,
+  normalizado: 0,
+  aguardandoBaixa: false,
+  deficit: 0,
+  emRuptura: false,
+};
 
-const produtoOptions = mockProdutos.map((p) => ({
-  value: p.sku,
-  label: p.descricao,
-  sublabel: [p.sku, p.categoria].filter(Boolean).join(" · "),
-}));
+interface Props {
+  clientes: ClienteRow[];
+  produtos: ProdutoRow[];
+  linhasEstoque: LinhaEstoque[];
+  vendedor: { id: string; nome: string };
+  motivos: { codigo: string; label: string }[];
+}
 
-export function NovaNegociacaoForm() {
+export function NovaNegociacaoForm({ clientes, produtos, linhasEstoque, vendedor, motivos }: Props) {
   const router = useRouter();
-  const [clienteCodigo, setClienteCodigo] = useState("");
-  const [vendedor, setVendedor] = useState(mockVendedores[0]);
+  const [clienteId, setClienteId] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [itens, setItens] = useState<ItemForm[]>([novoItem()]);
   const [temBonificacao, setTemBonificacao] = useState(false);
   const [itensBoni, setItensBoni] = useState<BonifItemForm[]>([]);
   const [boniData, setBoniData] = useState("");
   const [salvando, setSalvando] = useState(false);
+
+  const produtoPorSku = useMemo(() => new Map(produtos.map((p) => [p.sku, p])), [produtos]);
+  const estoquePorSku = useMemo(
+    () => new Map(linhasEstoque.map((l) => [l.row.sku, l.norm])),
+    [linhasEstoque],
+  );
+  const motivoPorLabel = useMemo(() => new Map(motivos.map((m) => [m.label, m.codigo])), [motivos]);
+
+  const clienteOptions = useMemo(
+    () =>
+      clientes.map((c) => ({
+        value: c.id,
+        label: c.nomeResumido,
+        sublabel: [c.cidade && c.estado ? `${c.cidade}/${c.estado}` : null, c.codigo].filter(Boolean).join(" · "),
+      })),
+    [clientes],
+  );
+
+  const produtoOptions = useMemo(
+    () =>
+      produtos.map((p) => ({
+        value: p.sku,
+        label: p.descricao,
+        sublabel: [p.sku, p.categoria].filter(Boolean).join(" · "),
+      })),
+    [produtos],
+  );
 
   const boniTotais = useMemo(
     () =>
@@ -102,7 +127,7 @@ export function NovaNegociacaoForm() {
   }
 
   function onSkuBoniChange(key: string, sku: string) {
-    const produto = produtoCatalogo(sku);
+    const produto = produtoPorSku.get(sku);
     atualizarItemBoni(key, { sku, precoBase: produto?.preco ?? 0 });
   }
 
@@ -110,7 +135,7 @@ export function NovaNegociacaoForm() {
     setItensBoni((prev) => prev.filter((item) => item.key !== key));
   }
 
-  const cliente = mockClientes.find((c) => c.codigo === clienteCodigo) ?? null;
+  const cliente = clientes.find((c) => c.id === clienteId) ?? null;
 
   function atualizarItem(key: string, patch: Partial<ItemForm> | ((item: ItemForm) => Partial<ItemForm>)) {
     setItens((prev) =>
@@ -119,8 +144,8 @@ export function NovaNegociacaoForm() {
   }
 
   function onSkuChange(key: string, sku: string) {
-    const produto = produtoCatalogo(sku);
-    const estoque = estoqueDisponivelDe(sku);
+    const produto = produtoPorSku.get(sku);
+    const estoque = estoquePorSku.get(sku)?.normalizado ?? 0;
     atualizarItem(key, (item) => {
       const qtdV1 = item.qtdV1 || 1;
       const emRuptura = qtdV1 > estoque;
@@ -138,7 +163,7 @@ export function NovaNegociacaoForm() {
   function onQtdV1Change(key: string, value: number) {
     atualizarItem(key, (item) => {
       if (item.finalTocado) return { qtdV1: value };
-      const estoque = item.sku ? estoqueDisponivelDe(item.sku) : Infinity;
+      const estoque = item.sku ? estoquePorSku.get(item.sku)?.normalizado ?? 0 : Infinity;
       const emRuptura = item.sku && value > estoque;
       return {
         qtdV1: value,
@@ -174,10 +199,9 @@ export function NovaNegociacaoForm() {
   const itensValidos = itens.filter((item) => item.sku);
   const pendencias = itensValidos.filter((item) => item.qtdFinal !== item.qtdV1 && !item.motivo);
   const bonificacaoIncompleta = temBonificacao && itensBoni.filter((item) => item.sku).length === 0;
-  const podeSalvar =
-    Boolean(clienteCodigo) && itensValidos.length > 0 && pendencias.length === 0 && !bonificacaoIncompleta;
+  const podeSalvar = Boolean(clienteId) && itensValidos.length > 0 && pendencias.length === 0 && !bonificacaoIncompleta;
 
-  function salvar() {
+  async function salvar() {
     if (!podeSalvar) {
       toast.error("Revise a negociação", {
         description: bonificacaoIncompleta
@@ -187,14 +211,48 @@ export function NovaNegociacaoForm() {
       return;
     }
     setSalvando(true);
-    const codigo = proximoCodigoTicket();
-    setTimeout(() => {
-      setSalvando(false);
-      toast.success(`Negociação ${codigo} registrada`, {
-        description: "Exemplo — será gravada no banco quando o Supabase estiver conectado.",
+    try {
+      const supabase = createClient();
+      const { id } = await criarNegociacao(supabase, {
+        clienteId,
+        vendedorId: vendedor.id,
+        observacoes: observacoes.trim() || null,
+        itens: itensValidos.map((item) => {
+          const produto = produtoPorSku.get(item.sku);
+          return {
+            produtoId: produto!.id,
+            qtdV1: item.qtdV1,
+            qtdFinal: item.qtdFinal,
+            precoNegociado: item.precoNegociado,
+            precoTabela: produto?.preco ?? null,
+            estoqueDisponivel: estoquePorSku.get(item.sku)?.normalizado ?? 0,
+            motivoCodigo: item.motivo ? motivoPorLabel.get(item.motivo) ?? null : null,
+          };
+        }),
+        bonificacao: temBonificacao
+          ? {
+              dataPagamento: boniData || null,
+              observacoes: null,
+              itens: itensBoni
+                .filter((item) => item.sku)
+                .map((item) => ({
+                  produtoId: produtoPorSku.get(item.sku)!.id,
+                  qtd: item.qtd,
+                  precoBase: item.precoBase,
+                })),
+            }
+          : null,
       });
-      router.push("/negociacoes");
-    }, 400);
+
+      toast.success("Negociação registrada");
+      router.push(`/negociacoes/${id}`);
+    } catch (e) {
+      toast.error("Não foi possível salvar a negociação", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -210,8 +268,8 @@ export function NovaNegociacaoForm() {
               <Label>Cliente</Label>
               <Combobox
                 options={clienteOptions}
-                value={clienteCodigo}
-                onChange={setClienteCodigo}
+                value={clienteId}
+                onChange={setClienteId}
                 placeholder="Selecione o cliente"
                 searchPlaceholder="Buscar por nome ou código..."
                 emptyText="Nenhum cliente encontrado."
@@ -224,18 +282,7 @@ export function NovaNegociacaoForm() {
             </div>
             <div className="space-y-1.5">
               <Label>Vendedor</Label>
-              <Select value={vendedor} onValueChange={(v) => setVendedor(v ?? mockVendedores[0])}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {mockVendedores.map((nome) => (
-                    <SelectItem key={nome} value={nome}>
-                      {nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input value={vendedor.nome} disabled className="bg-muted" />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -265,8 +312,8 @@ export function NovaNegociacaoForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           {itens.map((item) => {
-            const produto = produtoCatalogo(item.sku);
-            const norm = item.sku ? estoqueNormalizadoDe(item.sku) : null;
+            const produto = item.sku ? produtoPorSku.get(item.sku) : undefined;
+            const norm = item.sku ? estoquePorSku.get(item.sku) ?? ESTOQUE_VAZIO : null;
             const divergente = item.sku && item.qtdFinal !== item.qtdV1;
             const totalItem = item.qtdFinal * item.precoNegociado;
             const precisaMotivo = divergente && !item.motivo;
