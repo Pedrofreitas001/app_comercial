@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   MOTIVO_SEM_ESTOQUE,
   MOTIVOS,
@@ -203,46 +204,53 @@ export function NovaNegociacaoForm() {
           <CardTitle className="text-base">Dados da negociação</CardTitle>
           <CardDescription>Cliente, vendedor e contexto do acordo.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label>Cliente</Label>
-            <Combobox
-              options={clienteOptions}
-              value={clienteCodigo}
-              onChange={setClienteCodigo}
-              placeholder="Selecione o cliente"
-              searchPlaceholder="Buscar por nome ou código..."
-              emptyText="Nenhum cliente encontrado."
-            />
-            {cliente && (
-              <p className="text-xs text-muted-foreground">
-                {cliente.rede ?? cliente.nome} · {cliente.canal ?? "canal não informado"}
-              </p>
-            )}
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Cliente</Label>
+              <Combobox
+                options={clienteOptions}
+                value={clienteCodigo}
+                onChange={setClienteCodigo}
+                placeholder="Selecione o cliente"
+                searchPlaceholder="Buscar por nome ou código..."
+                emptyText="Nenhum cliente encontrado."
+              />
+              {cliente && (
+                <p className="text-xs text-muted-foreground">
+                  {cliente.rede ?? cliente.nome} · {cliente.canal ?? "canal não informado"}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Vendedor</Label>
+              <Select value={vendedor} onValueChange={(v) => setVendedor(v ?? mockVendedores[0])}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockVendedores.map((nome) => (
+                    <SelectItem key={nome} value={nome}>
+                      {nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Vendedor</Label>
-            <Select value={vendedor} onValueChange={(v) => setVendedor(v ?? mockVendedores[0])}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {mockVendedores.map((nome) => (
-                  <SelectItem key={nome} value={nome}>
-                    {nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="obs-negociacao">Observações</Label>
-            <Input
+            <Label htmlFor="obs-negociacao">Nota inicial</Label>
+            <Textarea
               id="obs-negociacao"
               value={observacoes}
               onChange={(event) => setObservacoes(event.target.value)}
-              placeholder="Contexto do acordo (opcional)"
+              placeholder="Ex.: cliente pediu prioridade nesta linha, combinado prazo de entrega até dia 30..."
+              className="min-h-[72px]"
             />
+            <p className="text-xs text-muted-foreground">
+              Registrar o contexto agora ajuda o time a entender esta negociação depois — dá pra
+              adicionar mais notas na tela do pedido.
+            </p>
           </div>
         </CardContent>
       </Card>

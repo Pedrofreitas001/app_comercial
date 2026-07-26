@@ -78,6 +78,24 @@ export function bonificacaoTotais(bonificacao: MockBonificacao | null) {
   );
 }
 
+// Nota de acompanhamento — o vendedor registra contexto ao longo da
+// negociação (ligação, e-mail, decisão do cliente etc), não é um campo único.
+export interface NotaTicket {
+  id: string;
+  autor: string;
+  data: string; // dd/MM/yyyy HH:mm
+  texto: string;
+}
+
+export interface ArquivoTicket {
+  id: string;
+  nome: string;
+  tipo: string; // rótulo simplificado do tipo (PDF, Imagem, Excel, Word...)
+  tamanho: string; // ex: "1,2 MB"
+  autor: string;
+  data: string; // dd/MM/yyyy
+}
+
 export interface MockTicket {
   id: string;
   codigo: string;
@@ -90,6 +108,8 @@ export interface MockTicket {
   status: TicketStatus;
   nf: string | null;
   observacoes: string | null;
+  notas: NotaTicket[];
+  arquivos: ArquivoTicket[];
   bonificacao: MockBonificacao | null;
   itens: MockItemNegociacao[];
 }
@@ -188,6 +208,30 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246511",
     observacoes: "Pedido mensal. Cliente pediu prioridade na linha Divine.",
+    notas: [
+      {
+        id: "n1",
+        autor: "Andre Benah",
+        data: "23/07/2026 09:14",
+        texto: "Cliente pediu para priorizar a linha Divine neste pedido - ja avisei o Supply sobre a ruptura da ampola.",
+      },
+      {
+        id: "n2",
+        autor: "Andre Benah",
+        data: "24/07/2026 11:02",
+        texto: "Fechado com desconto de 7% na linha Divine. Bonificacao combinada para entrega junto com a proxima NF.",
+      },
+    ],
+    arquivos: [
+      {
+        id: "a1",
+        nome: "pedido-makibella-julho.pdf",
+        tipo: "PDF",
+        tamanho: "482 KB",
+        autor: "Andre Benah",
+        data: "24/07/2026",
+      },
+    ],
     bonificacao: {
       itens: [
         { sku: "DC821693", qtd: 12, precoBase: 18.9 },
@@ -242,6 +286,8 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246498",
     observacoes: null,
+    notas: [],
+    arquivos: [],
     bonificacao: {
       itens: [{ sku: "RC821174", qtd: 6, precoBase: 42.0 }],
       dataPagamento: "24/07/2026",
@@ -283,6 +329,8 @@ export const mockTickets: MockTicket[] = [
     status: "em_andamento",
     nf: null,
     observacoes: "Aguardando confirmação de cobertura de estoque da ampola.",
+    notas: [],
+    arquivos: [],
     bonificacao: {
       itens: [{ sku: "DC821693", qtd: 10, precoBase: 19.9 }],
       dataPagamento: "20/07/2026",
@@ -324,6 +372,8 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246402",
     observacoes: null,
+    notas: [],
+    arquivos: [],
     bonificacao: null,
     itens: [
       {
@@ -360,6 +410,8 @@ export const mockTickets: MockTicket[] = [
     status: "rascunho",
     nf: null,
     observacoes: "Cliente revendo mix antes de fechar.",
+    notas: [],
+    arquivos: [],
     bonificacao: null,
     itens: [
       {
@@ -386,6 +438,8 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246301",
     observacoes: null,
+    notas: [],
+    arquivos: [],
     bonificacao: {
       itens: [{ sku: "CR823055", qtd: 2, precoBase: 64.5 }],
       dataPagamento: "28/07/2026",
@@ -437,6 +491,8 @@ export const mockTickets: MockTicket[] = [
     status: "concluida",
     nf: "246187",
     observacoes: null,
+    notas: [],
+    arquivos: [],
     bonificacao: {
       itens: [{ sku: "DE821556", qtd: 20, precoBase: 18.9 }],
       dataPagamento: "22/07/2026",
@@ -478,6 +534,8 @@ export const mockTickets: MockTicket[] = [
     status: "cancelada",
     nf: null,
     observacoes: "Cliente desistiu após revisão de orçamento.",
+    notas: [],
+    arquivos: [],
     bonificacao: null,
     itens: [
       {
@@ -527,16 +585,6 @@ export function listarBonificacoes(): BonificacaoRow[] {
       };
     });
 }
-
-// Série histórica para o gráfico mensal (negociado vs vendido).
-export const mockMensal = [
-  { mes: "Fev", negociado: 182_000, vendido: 168_400 },
-  { mes: "Mar", negociado: 214_500, vendido: 189_100 },
-  { mes: "Abr", negociado: 198_200, vendido: 184_600 },
-  { mes: "Mai", negociado: 246_800, vendido: 214_300 },
-  { mes: "Jun", negociado: 271_400, vendido: 229_800 },
-  { mes: "Jul", negociado: 259_300, vendido: 226_100 },
-];
 
 export const mockDistribuicaoMotivo = [
   { motivo: "Sem estoque", valor: 62 },

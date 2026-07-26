@@ -1,10 +1,10 @@
-import { ArrowRight, Gift, Handshake, PackageX, ShoppingCart } from "lucide-react";
+import { ArrowRight, Gift, Handshake, PackageX, Plus, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiCard } from "@/components/kpi-card";
-import { MonthlyChart } from "@/components/dashboard/monthly-chart";
 import { MotivoBars } from "@/components/dashboard/motivo-bars";
 import { RankedList } from "@/components/dashboard/ranked-list";
 import { TicketsTable } from "@/components/tickets-table";
@@ -14,7 +14,6 @@ import {
   bonificacaoTotais,
   itemTotais,
   mockDistribuicaoMotivo,
-  mockMensal,
   mockTickets,
   ticketTotais,
 } from "@/lib/mock-data";
@@ -100,7 +99,13 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Visão comercial</h1>
           <p className="text-sm text-muted-foreground">Acompanhamento das negociações da semana.</p>
         </div>
-        <Badge variant="secondary">Dados de exemplo</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">Dados de exemplo</Badge>
+          <Button nativeButton={false} render={<Link href="/negociacoes/nova" />}>
+            <Plus data-icon="inline-start" />
+            Nova negociação
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -140,58 +145,6 @@ export default function DashboardPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Negociado vs. vendido por mês</CardTitle>
-          <CardDescription>Evolução do volume comercial nos últimos meses.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <MonthlyChart data={mockMensal} />
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Top SKUs</CardTitle>
-            <CardDescription>Por valor vendido</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RankedList items={agg.topSkus} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Top clientes</CardTitle>
-            <CardDescription>Por valor vendido</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RankedList items={agg.topClientes} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Top vendedores</CardTitle>
-            <CardDescription>Por valor vendido</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RankedList items={agg.topVendedores} />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Motivos de ajuste nas negociações</CardTitle>
-          <CardDescription>
-            Distribuição dos motivos informados quando a quantidade final difere da negociada.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <MotivoBars data={mockDistribuicaoMotivo} />
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="space-y-1.5">
             <CardTitle className="text-base">Últimas negociações</CardTitle>
@@ -206,6 +159,43 @@ export default function DashboardPage() {
           <TicketsTable tickets={ultimas} />
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Destaques</CardTitle>
+            <CardDescription>Por valor vendido no período</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="skus">
+              <TabsList>
+                <TabsTrigger value="skus">SKUs</TabsTrigger>
+                <TabsTrigger value="clientes">Clientes</TabsTrigger>
+                <TabsTrigger value="vendedores">Vendedores</TabsTrigger>
+              </TabsList>
+              <TabsContent value="skus" className="pt-4">
+                <RankedList items={agg.topSkus} />
+              </TabsContent>
+              <TabsContent value="clientes" className="pt-4">
+                <RankedList items={agg.topClientes} />
+              </TabsContent>
+              <TabsContent value="vendedores" className="pt-4">
+                <RankedList items={agg.topVendedores} />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Motivos de ajuste</CardTitle>
+            <CardDescription>Quando a quantidade final difere da negociada</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MotivoBars data={mockDistribuicaoMotivo} />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

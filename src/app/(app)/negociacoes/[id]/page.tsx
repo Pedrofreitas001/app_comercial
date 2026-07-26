@@ -19,6 +19,8 @@ import {
 } from "@/lib/mock-data";
 import { NfForm } from "./nf-form";
 import { BonificacaoControl } from "./bonificacao-control";
+import { NotasPanel } from "./notas-panel";
+import { ArquivosPanel } from "./arquivos-panel";
 
 export function generateStaticParams() {
   return mockTickets.map((ticket) => ({ id: ticket.id }));
@@ -225,54 +227,46 @@ export default async function NegociacaoDetalhePage({
 
       <BonificacaoControl bonificacao={ticket.bonificacao} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Cliente</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Cliente</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div>
+            <p className="font-medium">{ticket.cliente}</p>
+            <p className="text-muted-foreground">{ticket.clienteCodigo}</p>
+          </div>
+          <Separator />
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5">
             <div>
-              <p className="font-medium">{ticket.cliente}</p>
-              <p className="text-muted-foreground">{ticket.clienteCodigo}</p>
+              <dt className="text-muted-foreground">Cidade/UF</dt>
+              <dd className="font-medium">{ticket.cidadeUf}</dd>
             </div>
-            <Separator />
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-              <div>
-                <dt className="text-muted-foreground">Cidade/UF</dt>
-                <dd className="font-medium">{ticket.cidadeUf}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Canal</dt>
-                <dd className="font-medium">{ticket.canal}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Vendedor</dt>
-                <dd className="font-medium">{ticket.vendedor}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Data</dt>
-                <dd className="font-medium">{ticket.data}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">NF</dt>
-                <dd className="font-medium">
-                  {ticket.nf ?? <span className="italic text-muted-foreground">pendente</span>}
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+            <div>
+              <dt className="text-muted-foreground">Canal</dt>
+              <dd className="font-medium">{ticket.canal}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Vendedor</dt>
+              <dd className="font-medium">{ticket.vendedor}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Data</dt>
+              <dd className="font-medium">{ticket.data}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">NF</dt>
+              <dd className="font-medium">
+                {ticket.nf ?? <span className="italic text-muted-foreground">pendente</span>}
+              </dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Observações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {ticket.observacoes ?? "Sem observações registradas."}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <NotasPanel notas={ticket.notas} autor={ticket.vendedor} />
+        <ArquivosPanel arquivos={ticket.arquivos} autor={ticket.vendedor} />
       </div>
     </div>
   );
