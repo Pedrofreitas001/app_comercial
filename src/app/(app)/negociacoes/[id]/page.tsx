@@ -11,6 +11,7 @@ import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
 import { bonifStatus, bonificacaoTotais, itemTotais, ticketTotais } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/server";
 import { getNegociacaoById } from "@/lib/queries/negociacoes";
+import { getProdutos } from "@/lib/queries/cadastros";
 import { NfForm } from "./nf-form";
 import { StatusControl } from "./status-control";
 import { BonificacaoControl } from "./bonificacao-control";
@@ -43,7 +44,10 @@ export default async function NegociacaoDetalhePage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const ticket = await getNegociacaoById(supabase, id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const [ticket, produtos] = await Promise.all([getNegociacaoById(supabase, id), getProdutos(supabase)]);
   if (!ticket) notFound();
 
   const totais = ticketTotais(ticket);
@@ -217,7 +221,7 @@ export default async function NegociacaoDetalhePage({
         </CardContent>
       </Card>
 
-      <BonificacaoControl bonificacao={ticket.bonificacao} />
+      <BonificacaoControl ticketId={ticket.id} bonificacao={ticket.bonificacao} produtos={produtos} />
 
       <Card>
         <CardHeader>
@@ -257,8 +261,18 @@ export default async function NegociacaoDetalhePage({
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <NotasPanel notas={ticket.notas} autor={ticket.vendedor} />
-        <ArquivosPanel arquivos={ticket.arquivos} autor={ticket.vendedor} />
+        <NotasPanel
+          ticketId={ticket.id}
+          notas={ticket.notas}
+          autor={ticket.vendedor}
+          usuarioId={user!.id}
+        />
+        <ArquivosPanel
+          ticketId={ticket.id}
+          arquivos={ticket.arquivos}
+          autor={ticket.vendedor}
+          usuarioId={user!.id}
+        />
       </div>
     </div>
   );

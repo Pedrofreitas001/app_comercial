@@ -6,6 +6,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ArquivoTicket } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
+
+const BUCKET = "negociacao-arquivos";
 
 function tipoDe(nome: string): string {
   const ext = nome.split(".").pop()?.toLowerCase() ?? "";
@@ -29,31 +32,108 @@ function tamanhoLegivel(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function ArquivosPanel({ arquivos: iniciais, autor }: { arquivos: ArquivoTicket[]; autor: string }) {
+// Remove acento/espaço/caractere especial do nome — o Storage rejeita boa
+// parte deles na key do objeto.
+function nomeSeguro(nome: string) {
+  return nome
+    .normalize("NFD")
+    .replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+interface Props {
+  ticketId: string;
+  arquivos: ArquivoTicket[];
+  autor: string;
+  usuarioId: string;
+}
+
+export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }: Props) {
   const [arquivos, setArquivos] = useState(iniciais);
   const [arrastando, setArrastando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function adicionarArquivos(files: FileList | null) {
+  async function adicionarArquivos(files: FileList | null) {
     if (!files || files.length === 0) return;
+    setEnviando(true);
+    const supabase = createClient();
     const hoje = new Date();
-    const data = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}/${hoje.getFullYear()}`;
-    const novos: ArquivoTicket[] = Array.from(files).map((file) => ({
-      id: Math.random().toString(36).slice(2),
-      nome: file.name,
-      tipo: tipoDe(file.name),
-      tamanho: tamanhoLegivel(file.size),
-      autor,
-      data,
-    }));
-    setArquivos((prev) => [...novos, ...prev]);
-    toast.success(`${novos.length} arquivo(s) anexado(s)`, {
-      description: "Exemplo — o upload real acontece quando o Supabase Storage estiver conectado.",
-    });
+    const dataFormatada = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}/${hoje.getFullYear()}`;
+    const novos: ArquivoTicket[] = [];
+
+    for (const file of Array.from(files)) {
+      // path precisa começar com o negociacao_id: as policies do Storage
+      // usam storage.foldername(name)[1] pra decidir quem pode ler/gravar.
+      const path = `${ticketId}/${Date.now()}-${nomeSeguro(file.name)}`;
+      const { error: erroUpload } = await supabase.storage.from(BUCKET).upload(path, file);
+      if (erroUpload) {
+        toast.error(`Falha ao enviar ${file.name}`, { description: erroUpload.message });
+        continue;
+      }
+
+      const { data, error: erroInsert } = await supabase
+        .from("arquivos")
+        .insert({
+          negociacao_id: ticketId,
+          nome: file.name,
+          tipo: tipoDe(file.name),
+          storage_path: path,
+          tamanho_bytes: file.size,
+          usuario_id: usuarioId,
+        })
+        .select("id")
+        .single();
+
+      if (erroInsert || !data) {
+        // registro falhou: remove o objeto pra não deixar arquivo órfão no bucket
+        await supabase.storage.from(BUCKET).remove([path]);
+        toast.error(`Falha ao registrar ${file.name}`, { description: erroInsert?.message });
+        continue;
+      }
+
+      novos.push({
+        id: data.id,
+        nome: file.name,
+        tipo: tipoDe(file.name),
+        tamanho: tamanhoLegivel(file.size),
+        autor,
+        data: dataFormatada,
+      });
+    }
+
+    setEnviando(false);
+    if (novos.length > 0) {
+      setArquivos((prev) => [...novos, ...prev]);
+      toast.success(`${novos.length} arquivo(s) anexado(s)`);
+    }
   }
 
-  function remover(id: string) {
+  async function remover(id: string) {
+    const supabase = createClient();
+    const { data: arquivo } = await supabase.from("arquivos").select("storage_path").eq("id", id).single();
+    const { error } = await supabase.from("arquivos").delete().eq("id", id);
+    if (error) {
+      toast.error("Não foi possível remover o arquivo", { description: error.message });
+      return;
+    }
+    if (arquivo?.storage_path) {
+      await supabase.storage.from(BUCKET).remove([arquivo.storage_path]);
+    }
     setArquivos((prev) => prev.filter((a) => a.id !== id));
+    toast.success("Arquivo removido");
+  }
+
+  async function baixar(id: string, nome: string) {
+    const supabase = createClient();
+    const { data: arquivo } = await supabase.from("arquivos").select("storage_path").eq("id", id).single();
+    if (!arquivo?.storage_path) return;
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(arquivo.storage_path, 60);
+    if (error || !data) {
+      toast.error(`Não foi possível abrir ${nome}`, { description: error?.message });
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -83,7 +163,9 @@ export function ArquivosPanel({ arquivos: iniciais, autor }: { arquivos: Arquivo
           }`}
         >
           <UploadCloud className="size-6 text-muted-foreground" />
-          <p className="text-sm font-medium">Arraste um arquivo ou clique para escolher</p>
+          <p className="text-sm font-medium">
+            {enviando ? "Enviando..." : "Arraste um arquivo ou clique para escolher"}
+          </p>
           <input
             ref={inputRef}
             type="file"
@@ -102,12 +184,16 @@ export function ArquivosPanel({ arquivos: iniciais, autor }: { arquivos: Arquivo
               return (
                 <li key={arquivo.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
                   <Icone className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{arquivo.nome}</p>
+                  <button
+                    type="button"
+                    onClick={() => baixar(arquivo.id, arquivo.nome)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="truncate text-sm font-medium underline-offset-4 hover:underline">{arquivo.nome}</p>
                     <p className="text-xs text-muted-foreground">
                       {arquivo.tipo} · {arquivo.tamanho} · {arquivo.autor} · {arquivo.data}
                     </p>
-                  </div>
+                  </button>
                   <Button
                     variant="ghost"
                     size="icon-sm"

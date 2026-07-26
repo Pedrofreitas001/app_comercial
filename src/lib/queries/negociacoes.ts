@@ -266,3 +266,44 @@ export async function criarNegociacao(
 
   return negociacao;
 }
+
+// Substitui a bonificação inteira do pedido (upsert do cabeçalho + troca
+// completa dos itens) — mais simples e seguro que tentar diff incremental,
+// já que a tela sempre edita a lista toda de uma vez.
+export async function salvarBonificacao(
+  supabase: SupabaseClient,
+  negociacaoId: string,
+  input: NovaBonificacaoInput,
+): Promise<string> {
+  const { data: bonificacao, error: erroUpsert } = await supabase
+    .from("bonificacoes")
+    .upsert(
+      { negociacao_id: negociacaoId, data_pagamento: input.dataPagamento, observacoes: input.observacoes },
+      { onConflict: "negociacao_id" },
+    )
+    .select("id")
+    .single();
+  if (erroUpsert || !bonificacao) throw erroUpsert ?? new Error("Falha ao salvar bonificação.");
+
+  const { error: erroDelete } = await supabase.from("bonificacao_itens").delete().eq("bonificacao_id", bonificacao.id);
+  if (erroDelete) throw erroDelete;
+
+  if (input.itens.length > 0) {
+    const { error: erroInsert } = await supabase.from("bonificacao_itens").insert(
+      input.itens.map((item) => ({
+        bonificacao_id: bonificacao.id,
+        produto_id: item.produtoId,
+        qtd: item.qtd,
+        preco_base: item.precoBase,
+      })),
+    );
+    if (erroInsert) throw erroInsert;
+  }
+
+  return bonificacao.id;
+}
+
+export async function marcarBonificacaoPaga(supabase: SupabaseClient, negociacaoId: string, paga: boolean) {
+  const { error } = await supabase.from("bonificacoes").update({ paga }).eq("negociacao_id", negociacaoId);
+  if (error) throw error;
+}

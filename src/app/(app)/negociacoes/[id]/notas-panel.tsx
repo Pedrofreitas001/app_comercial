@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import type { NotaTicket } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 
 function iniciais(nome: string) {
   return nome
@@ -21,22 +22,45 @@ function iniciais(nome: string) {
 // Painel de notas: fica sempre aberto pra escrever (não é um campo escondido
 // atrás de um botão) — a ideia é convidar o vendedor a registrar o contexto
 // conforme a negociação evolui, não só uma observação estática no fim.
-export function NotasPanel({ notas: notasIniciais, autor }: { notas: NotaTicket[]; autor: string }) {
+export function NotasPanel({
+  ticketId,
+  notas: notasIniciais,
+  autor,
+  usuarioId,
+}: {
+  ticketId: string;
+  notas: NotaTicket[];
+  autor: string;
+  usuarioId: string;
+}) {
   const [notas, setNotas] = useState(notasIniciais);
   const [texto, setTexto] = useState("");
+  const [salvando, setSalvando] = useState(false);
 
-  function adicionar() {
+  async function adicionar() {
     if (!texto.trim()) {
       toast.error("Escreva algo antes de salvar a nota.");
       return;
     }
-    const agora = new Date();
-    const data = `${String(agora.getDate()).padStart(2, "0")}/${String(agora.getMonth() + 1).padStart(2, "0")}/${agora.getFullYear()} ${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
-    setNotas((prev) => [...prev, { id: Math.random().toString(36).slice(2), autor, data, texto: texto.trim() }]);
+    setSalvando(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("notas")
+      .insert({ negociacao_id: ticketId, usuario_id: usuarioId, texto: texto.trim() })
+      .select("id, texto, created_at")
+      .single();
+    setSalvando(false);
+
+    if (error || !data) {
+      toast.error("Não foi possível salvar a nota", { description: error?.message });
+      return;
+    }
+
+    const criada = new Date(data.created_at);
+    const dataFormatada = `${String(criada.getDate()).padStart(2, "0")}/${String(criada.getMonth() + 1).padStart(2, "0")}/${criada.getFullYear()} ${String(criada.getHours()).padStart(2, "0")}:${String(criada.getMinutes()).padStart(2, "0")}`;
+    setNotas((prev) => [...prev, { id: data.id, autor, data: dataFormatada, texto: data.texto }]);
     setTexto("");
-    toast.success("Nota adicionada", {
-      description: "Exemplo — será gravada no banco quando o Supabase estiver conectado.",
-    });
+    toast.success("Nota adicionada");
   }
 
   return (
@@ -86,9 +110,9 @@ export function NotasPanel({ notas: notasIniciais, autor }: { notas: NotaTicket[
           />
         </div>
         <div className="flex justify-end">
-          <Button onClick={adicionar} size="sm">
+          <Button onClick={adicionar} size="sm" disabled={salvando}>
             <Send data-icon="inline-start" />
-            Adicionar nota
+            {salvando ? "Salvando..." : "Adicionar nota"}
           </Button>
         </div>
       </CardContent>

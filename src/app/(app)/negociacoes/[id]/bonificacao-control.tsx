@@ -11,19 +11,22 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { BonifStatusBadge } from "@/components/bonif-status-badge";
 import { formatBRLPreco, formatNumber } from "@/lib/format";
-import {
-  bonifStatus,
-  mockProdutos,
-  produtoCatalogo,
-  type BonificacaoItem,
-  type MockBonificacao,
-} from "@/lib/mock-data";
+import { bonifStatus, type BonificacaoItem, type MockBonificacao } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
+import { salvarBonificacao, marcarBonificacaoPaga } from "@/lib/queries/negociacoes";
+import type { ProdutoRow } from "@/lib/queries/cadastros";
 
-const produtoOptions = mockProdutos.map((p) => ({
-  value: p.sku,
-  label: p.descricao,
-  sublabel: [p.sku, p.categoria].filter(Boolean).join(" · "),
-}));
+function brParaIso(data: string | null): string {
+  if (!data) return "";
+  const [dia, mes, ano] = data.split("/");
+  return `${ano}-${mes}-${dia}`;
+}
+
+function isoParaBr(data: string): string | null {
+  if (!data) return null;
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
 
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -39,25 +42,37 @@ interface ItemState extends BonificacaoItem {
 }
 
 function toItemState(itens: BonificacaoItem[]): ItemState[] {
-  return itens.map((item) => ({
-    ...item,
-    // canoniza pro SKU de venda (SKU_saida) - o combobox só lista codigos
-    // canonicos, e o item pode ter vindo salvo com um codigo de entrada.
-    sku: produtoCatalogo(item.sku)?.sku ?? item.sku,
-    key: Math.random().toString(36).slice(2),
-  }));
+  return itens.map((item) => ({ ...item, key: Math.random().toString(36).slice(2) }));
+}
+
+interface Props {
+  ticketId: string;
+  bonificacao: MockBonificacao | null;
+  produtos: ProdutoRow[];
 }
 
 // Controle da bonificação acordada sobre o TOTAL do pedido: produtos
 // escolhidos numa lista (SKU + quantidade + preço base) contabilizam peças e
-// faturamento automaticamente. Estado local por enquanto — será gravado no
-// banco quando o Supabase estiver conectado.
-export function BonificacaoControl({ bonificacao }: { bonificacao: MockBonificacao | null }) {
+// faturamento automaticamente.
+export function BonificacaoControl({ ticketId, bonificacao, produtos }: Props) {
   const [ativa, setAtiva] = useState(bonificacao !== null);
   const [itens, setItens] = useState<ItemState[]>(toItemState(bonificacao?.itens ?? []));
   const [paga, setPaga] = useState(bonificacao?.paga ?? false);
-  const [dataPagamento, setDataPagamento] = useState(bonificacao?.dataPagamento ?? "");
+  const [dataPagamento, setDataPagamento] = useState(brParaIso(bonificacao?.dataPagamento ?? null));
   const [obs, setObs] = useState(bonificacao?.observacoes ?? "");
+  const [salvando, setSalvando] = useState(false);
+  const [alterandoPagamento, setAlterandoPagamento] = useState(false);
+
+  const produtoPorSku = useMemo(() => new Map(produtos.map((p) => [p.sku, p])), [produtos]);
+  const produtoOptions = useMemo(
+    () =>
+      produtos.map((p) => ({
+        value: p.sku,
+        label: p.descricao,
+        sublabel: [p.sku, p.categoria].filter(Boolean).join(" · "),
+      })),
+    [produtos],
+  );
 
   const totais = useMemo(
     () => itens.reduce((acc, item) => ({ pecas: acc.pecas + item.qtd, valor: acc.valor + item.qtd * item.precoBase }), {
@@ -67,7 +82,7 @@ export function BonificacaoControl({ bonificacao }: { bonificacao: MockBonificac
     [itens],
   );
 
-  const status = bonifStatus({ itens, dataPagamento: dataPagamento || null, paga, observacoes: obs || null });
+  const status = bonifStatus({ itens, dataPagamento: isoParaBr(dataPagamento), paga, observacoes: obs || null });
 
   function adicionarItem() {
     setItens((prev) => [...prev, { key: Math.random().toString(36).slice(2), sku: "", qtd: 1, precoBase: 0 }]);
@@ -78,7 +93,7 @@ export function BonificacaoControl({ bonificacao }: { bonificacao: MockBonificac
   }
 
   function onSkuChange(key: string, sku: string) {
-    const produto = produtoCatalogo(sku);
+    const produto = produtoPorSku.get(sku);
     atualizarItem(key, { sku, precoBase: produto?.preco ?? 0 });
   }
 
@@ -86,18 +101,49 @@ export function BonificacaoControl({ bonificacao }: { bonificacao: MockBonificac
     setItens((prev) => prev.filter((item) => item.key !== key));
   }
 
-  function togglePagamento() {
+  async function togglePagamento() {
     const nova = !paga;
+    setAlterandoPagamento(true);
+    const supabase = createClient();
+    const { error } = await marcarBonificacaoPaga(supabase, ticketId, nova).then(
+      () => ({ error: null }),
+      (e: Error) => ({ error: e }),
+    );
+    setAlterandoPagamento(false);
+    if (error) {
+      toast.error("Não foi possível atualizar o pagamento", { description: error.message });
+      return;
+    }
     setPaga(nova);
-    toast.success(nova ? "Bonificação marcada como paga" : "Pagamento da bonificação reaberto", {
-      description: "Exemplo — será gravado no banco quando o Supabase estiver conectado.",
-    });
+    toast.success(nova ? "Bonificação marcada como paga" : "Pagamento da bonificação reaberto");
   }
 
-  function salvar() {
-    toast.success("Bonificação salva", {
-      description: "Exemplo — será gravada no banco quando o Supabase estiver conectado.",
-    });
+  async function salvar() {
+    const itensValidos = itens.filter((item) => item.sku);
+    if (itensValidos.length === 0) {
+      toast.error("Escolha ao menos um produto na bonificação.");
+      return;
+    }
+    setSalvando(true);
+    try {
+      const supabase = createClient();
+      await salvarBonificacao(supabase, ticketId, {
+        dataPagamento: dataPagamento || null,
+        observacoes: obs.trim() || null,
+        itens: itensValidos.map((item) => ({
+          produtoId: produtoPorSku.get(item.sku)!.id,
+          qtd: item.qtd,
+          precoBase: item.precoBase,
+        })),
+      });
+      toast.success("Bonificação salva");
+    } catch (e) {
+      toast.error("Não foi possível salvar a bonificação", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+    } finally {
+      setSalvando(false);
+    }
   }
 
   if (!ativa) {
@@ -202,7 +248,7 @@ export function BonificacaoControl({ bonificacao }: { bonificacao: MockBonificac
             </div>
           </div>
           <Campo label="Pagamento">
-            <Button size="sm" variant={paga ? "outline" : "default"} onClick={togglePagamento}>
+            <Button size="sm" variant={paga ? "outline" : "default"} onClick={togglePagamento} disabled={alterandoPagamento}>
               {paga ? (
                 <>
                   <RotateCcw data-icon="inline-start" />
@@ -231,8 +277,8 @@ export function BonificacaoControl({ bonificacao }: { bonificacao: MockBonificac
               onChange={(event) => setObs(event.target.value)}
               placeholder="Ex.: entrega junto com a próxima NF"
             />
-            <Button variant="secondary" onClick={salvar}>
-              Salvar
+            <Button variant="secondary" onClick={salvar} disabled={salvando}>
+              {salvando ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </div>
