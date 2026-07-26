@@ -10,9 +10,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { PeriodoFilter } from "@/components/periodo-filter";
 import { TicketsTable } from "@/components/tickets-table";
-import { formatBRL } from "@/lib/format";
-import { mockTickets, mockVendedores, ticketTotais } from "@/lib/mock-data";
+import { dataDentroDoPeriodo, mockTickets, mockVendedores, type PeriodoPreset } from "@/lib/mock-data";
 
 const STATUS_OPTIONS = [
   { value: "todos", label: "Todos os status" },
@@ -25,32 +25,21 @@ const STATUS_OPTIONS = [
 export function NegociacoesView() {
   const [vendedor, setVendedor] = useState("todos");
   const [status, setStatus] = useState("todos");
+  const [periodo, setPeriodo] = useState<PeriodoPreset>("todos");
   const [busca, setBusca] = useState("");
 
   const tickets = useMemo(() => {
     return mockTickets.filter((ticket) => {
       if (vendedor !== "todos" && ticket.vendedor !== vendedor) return false;
       if (status !== "todos" && ticket.status !== status) return false;
+      if (!dataDentroDoPeriodo(ticket.data, periodo)) return false;
       if (busca) {
         const alvo = `${ticket.codigo} ${ticket.cliente} ${ticket.nf ?? ""}`.toLowerCase();
         if (!alvo.includes(busca.toLowerCase())) return false;
       }
       return true;
     });
-  }, [vendedor, status, busca]);
-
-  const resumo = useMemo(() => {
-    return tickets.reduce(
-      (acc, ticket) => {
-        if (ticket.status === "cancelada") return acc;
-        const totais = ticketTotais(ticket);
-        acc.vendido += totais.totalFinal;
-        acc.perdido += totais.valorPerdido;
-        return acc;
-      },
-      { vendido: 0, perdido: 0 },
-    );
-  }, [tickets]);
+  }, [vendedor, status, periodo, busca]);
 
   return (
     <div className="space-y-4">
@@ -86,10 +75,7 @@ export function NegociacoesView() {
             ))}
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground sm:ml-auto">
-          {tickets.length} negociações · {formatBRL(resumo.vendido)} vendido
-          {resumo.perdido > 0 && ` · ${formatBRL(resumo.perdido)} perdido`}
-        </p>
+        <PeriodoFilter value={periodo} onChange={setPeriodo} className="sm:ml-auto sm:w-44" />
       </div>
 
       <Card>

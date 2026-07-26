@@ -134,6 +134,42 @@ function parseData(data: string) {
   return new Date(ano, mes - 1, dia);
 }
 
+// Filtro de período — usado no dashboard e nas listas de negociações e
+// bonificações, sempre calculado a partir de ticket.data (data da negociação).
+export type PeriodoPreset = "todos" | "7d" | "30d" | "mes" | "mesPassado";
+
+export const PERIODO_OPTIONS: { value: PeriodoPreset; label: string }[] = [
+  { value: "todos", label: "Todo o período" },
+  { value: "7d", label: "Últimos 7 dias" },
+  { value: "30d", label: "Últimos 30 dias" },
+  { value: "mes", label: "Este mês" },
+  { value: "mesPassado", label: "Mês passado" },
+];
+
+export function dataDentroDoPeriodo(data: string, preset: PeriodoPreset): boolean {
+  if (preset === "todos") return true;
+  const d = parseData(data);
+  const hoje = parseData(MOCK_HOJE);
+  if (preset === "7d") {
+    const inicio = new Date(hoje);
+    inicio.setDate(hoje.getDate() - 6);
+    return d >= inicio && d <= hoje;
+  }
+  if (preset === "30d") {
+    const inicio = new Date(hoje);
+    inicio.setDate(hoje.getDate() - 29);
+    return d >= inicio && d <= hoje;
+  }
+  if (preset === "mes") {
+    return d.getFullYear() === hoje.getFullYear() && d.getMonth() === hoje.getMonth();
+  }
+  if (preset === "mesPassado") {
+    const mesPassado = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    return d.getFullYear() === mesPassado.getFullYear() && d.getMonth() === mesPassado.getMonth();
+  }
+  return true;
+}
+
 export type BonifStatus = "pago" | "pendente" | "atrasada";
 
 export function bonifStatus(bonificacao: MockBonificacao | null): BonifStatus | null {
@@ -558,6 +594,7 @@ export interface BonificacaoRow {
   codigo: string;
   cliente: string;
   vendedor: string;
+  data: string;
   pecas: number;
   valor: number;
   itens: BonificacaoItem[];
@@ -576,6 +613,7 @@ export function listarBonificacoes(): BonificacaoRow[] {
         codigo: ticket.codigo,
         cliente: ticket.cliente,
         vendedor: ticket.vendedor,
+        data: ticket.data,
         pecas: totais.pecas,
         valor: totais.valor,
         itens: ticket.bonificacao!.itens,

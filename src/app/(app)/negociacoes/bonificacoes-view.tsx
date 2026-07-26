@@ -14,8 +14,15 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KpiCard } from "@/components/kpi-card";
 import { BonifStatusBadge } from "@/components/bonif-status-badge";
+import { PeriodoFilter } from "@/components/periodo-filter";
 import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
-import { listarBonificacoes, mockVendedores, produtoCatalogo } from "@/lib/mock-data";
+import {
+  dataDentroDoPeriodo,
+  listarBonificacoes,
+  mockVendedores,
+  produtoCatalogo,
+  type PeriodoPreset,
+} from "@/lib/mock-data";
 
 const STATUS_OPTIONS = [
   { value: "todos", label: "Todas as situações" },
@@ -27,6 +34,7 @@ const STATUS_OPTIONS = [
 export function BonificacoesView() {
   const [vendedor, setVendedor] = useState("todos");
   const [status, setStatus] = useState("todos");
+  const [periodo, setPeriodo] = useState<PeriodoPreset>("todos");
 
   const todas = useMemo(() => listarBonificacoes(), []);
 
@@ -34,12 +42,14 @@ export function BonificacoesView() {
     return todas.filter((row) => {
       if (vendedor !== "todos" && row.vendedor !== vendedor) return false;
       if (status !== "todos" && row.status !== status) return false;
+      if (!dataDentroDoPeriodo(row.data, periodo)) return false;
       return true;
     });
-  }, [todas, vendedor, status]);
+  }, [todas, vendedor, status, periodo]);
 
+  // KPIs refletem o mesmo filtro da lista abaixo, não o total geral.
   const resumo = useMemo(() => {
-    return todas.reduce(
+    return linhas.reduce(
       (acc, row) => {
         acc.total += row.valor;
         acc.pecas += row.pecas;
@@ -52,7 +62,7 @@ export function BonificacoesView() {
       },
       { total: 0, pecas: 0, pago: 0, aberto: 0, atrasadas: 0 },
     );
-  }, [todas]);
+  }, [linhas]);
 
   return (
     <div className="space-y-4">
@@ -60,7 +70,7 @@ export function BonificacoesView() {
         <KpiCard
           label="Bonificação acordada"
           value={formatBRL(resumo.total)}
-          hint={`${todas.length} pedidos · ${formatNumber(resumo.pecas)} peças`}
+          hint={`${linhas.length} pedidos · ${formatNumber(resumo.pecas)} peças`}
           icon={CircleDollarSign}
         />
         <KpiCard
@@ -107,9 +117,7 @@ export function BonificacoesView() {
             ))}
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground sm:ml-auto">
-          {linhas.length} bonificação(ões) listada(s)
-        </p>
+        <PeriodoFilter value={periodo} onChange={setPeriodo} className="sm:ml-auto sm:w-44" />
       </div>
 
       <Card>

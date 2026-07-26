@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
 import { AppSidebar } from "@/components/app-sidebar";
+import { AppFooter } from "@/components/app-footer";
 import { UserMenu } from "@/components/user-menu";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -62,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <UserMenu usuario={usuario} />
         </header>
         <main className="flex-1 p-6">{children}</main>
+        <AppFooter />
       </SidebarInset>
     </SidebarProvider>
   );
