@@ -1,11 +1,8 @@
 "use client";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { mockCatalogoRef, produtoCatalogo } from "@/lib/mock-data";
+import { produtoCatalogo } from "@/lib/mock-data";
 
-// SKU com tooltip mostrando a foto do catálogo no momento da negociação.
-// No app final o vendedor escolhe o SKU numa lista vinda do catálogo STRALOG,
-// e o item grava esse snapshot (descrição, categoria, data do catálogo).
 export function SkuTooltip({ sku, descricao }: { sku: string; descricao: string }) {
   const produto = produtoCatalogo(sku);
 
@@ -22,7 +19,6 @@ export function SkuTooltip({ sku, descricao }: { sku: string; descricao: string 
         <div className="space-y-1 py-0.5">
           <p className="font-medium">{descricao}</p>
           {produto?.categoria && <p className="opacity-80">{produto.categoria}</p>}
-          <p className="opacity-60">{mockCatalogoRef}</p>
         </div>
       </TooltipContent>
     </Tooltip>

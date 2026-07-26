@@ -8,23 +8,14 @@ import { Separator } from "@/components/ui/separator";
 import { KpiCard } from "@/components/kpi-card";
 import { SkuTooltip } from "@/components/sku-tooltip";
 import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
-import {
-  bonifStatus,
-  bonificacaoTotais,
-  itemTotais,
-  mockCatalogoRef,
-  mockTickets,
-  ticketTotais,
-} from "@/lib/mock-data";
+import { bonifStatus, bonificacaoTotais, itemTotais, ticketTotais } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { getNegociacaoById } from "@/lib/queries/negociacoes";
 import { NfForm } from "./nf-form";
 import { StatusControl } from "./status-control";
 import { BonificacaoControl } from "./bonificacao-control";
 import { NotasPanel } from "./notas-panel";
 import { ArquivosPanel } from "./arquivos-panel";
-
-export function generateStaticParams() {
-  return mockTickets.map((ticket) => ({ id: ticket.id }));
-}
 
 function Campo({
   label,
@@ -51,7 +42,8 @@ export default async function NegociacaoDetalhePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ticket = mockTickets.find((t) => t.id === id);
+  const supabase = await createClient();
+  const ticket = await getNegociacaoById(supabase, id);
   if (!ticket) notFound();
 
   const totais = ticketTotais(ticket);
@@ -74,13 +66,13 @@ export default async function NegociacaoDetalhePage({
           </Button>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{ticket.codigo}</h1>
-            <StatusControl statusInicial={ticket.status} />
+            <StatusControl ticketId={ticket.id} statusInicial={ticket.status} />
           </div>
           <p className="text-sm text-muted-foreground">
             {ticket.cliente} · {ticket.data} · {ticket.vendedor}
           </p>
         </div>
-        <NfForm nfInicial={ticket.nf} />
+        <NfForm ticketId={ticket.id} nfInicial={ticket.nf} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -133,7 +125,7 @@ export default async function NegociacaoDetalhePage({
           <CardDescription>
             A negociação preliminar é o acordo original; se houver ruptura, a quantidade final
             registra o ajuste e o motivo justifica a diferença. Passe o mouse no SKU para ver a
-            foto do catálogo ({mockCatalogoRef}).
+            categoria do catálogo.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

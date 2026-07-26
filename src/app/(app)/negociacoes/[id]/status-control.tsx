@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { TicketStatus } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 
 const STATUS_OPTIONS: { value: TicketStatus; label: string; className: string }[] = [
   { value: "rascunho", label: "Rascunho", className: "text-muted-foreground" },
@@ -28,17 +29,25 @@ const TRIGGER_TONE: Record<TicketStatus, string> = {
   cancelada: "bg-destructive/10 text-destructive border-transparent",
 };
 
-export function StatusControl({ statusInicial }: { statusInicial: TicketStatus }) {
+export function StatusControl({ ticketId, statusInicial }: { ticketId: string; statusInicial: TicketStatus }) {
   const [status, setStatus] = useState<TicketStatus>(statusInicial);
 
-  function handleChange(value: TicketStatus) {
+  async function handleChange(value: TicketStatus) {
+    const anterior = status;
     setStatus(value);
+    const supabase = createClient();
+    const { error } = await supabase.from("negociacoes").update({ status: value }).eq("id", ticketId);
+    if (error) {
+      setStatus(anterior);
+      toast.error("Não foi possível alterar o status", { description: error.message });
+      return;
+    }
     const label = STATUS_OPTIONS.find((o) => o.value === value)?.label ?? value;
     toast.success(`Status alterado para "${label}"`, {
       description:
         value === "faturada"
           ? "A partir da fatura, os itens deste pedido passam a abater o estoque disponível."
-          : "Exemplo — será gravado no banco quando o Supabase estiver conectado.",
+          : undefined,
     });
   }
 

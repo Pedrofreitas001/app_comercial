@@ -58,6 +58,7 @@ export interface BonificacaoItem {
   sku: string;
   qtd: number;
   precoBase: number; // preço unitário usado para valorar este item da bonificação
+  descricao?: string; // preenchido quando vem do banco - evita depender do catálogo mockado pra exibir
 }
 
 export interface MockBonificacao {
@@ -285,10 +286,6 @@ export function listarAtencao(tickets: MockTicket[]): AtencaoItem[] {
 }
 
 export const mockVendedores = ["Andre Benah", "Camila Rocha", "Paulo Menezes"];
-
-// Foto do catálogo STRALOG usada nos itens de exemplo. Cada item de negociação
-// guarda o catálogo/data em que o SKU foi escolhido pelo vendedor.
-export const mockCatalogoRef = "Catálogo STRALOG · 24/07/2026";
 
 // Aceita tanto o SKU de venda (SKU_saida) quanto um código de entrada do WMS —
 // é assim que o "Código" do export STRALOG encontra o produto certo.
@@ -681,8 +678,8 @@ export interface BonificacaoRow {
   observacoes: string | null;
 }
 
-export function listarBonificacoes(): BonificacaoRow[] {
-  return mockTickets
+export function listarBonificacoes(tickets: MockTicket[]): BonificacaoRow[] {
+  return tickets
     .filter((ticket) => ticket.status !== "cancelada" && ticket.bonificacao)
     .map((ticket) => {
       const totais = bonificacaoTotais(ticket.bonificacao);

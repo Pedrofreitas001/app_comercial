@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { PeriodoFilter } from "@/components/periodo-filter";
 import { TicketsTable } from "@/components/tickets-table";
-import { dataDentroDoPeriodo, mockTickets, mockVendedores, type PeriodoPreset } from "@/lib/mock-data";
+import { dataDentroDoPeriodo, type MockTicket, type PeriodoPreset } from "@/lib/mock-data";
 
 const STATUS_OPTIONS = [
   { value: "todos", label: "Todos os status" },
@@ -23,14 +23,19 @@ const STATUS_OPTIONS = [
   { value: "cancelada", label: "Cancelada" },
 ];
 
-export function NegociacoesView() {
+export function NegociacoesView({ tickets: todosTickets }: { tickets: MockTicket[] }) {
   const [vendedor, setVendedor] = useState("todos");
   const [status, setStatus] = useState("todos");
   const [periodo, setPeriodo] = useState<PeriodoPreset>("todos");
   const [busca, setBusca] = useState("");
 
+  const vendedores = useMemo(
+    () => [...new Set(todosTickets.map((t) => t.vendedor))].sort(),
+    [todosTickets],
+  );
+
   const tickets = useMemo(() => {
-    return mockTickets.filter((ticket) => {
+    return todosTickets.filter((ticket) => {
       if (vendedor !== "todos" && ticket.vendedor !== vendedor) return false;
       if (status !== "todos" && ticket.status !== status) return false;
       if (!dataDentroDoPeriodo(ticket.data, periodo)) return false;
@@ -40,7 +45,7 @@ export function NegociacoesView() {
       }
       return true;
     });
-  }, [vendedor, status, periodo, busca]);
+  }, [todosTickets, vendedor, status, periodo, busca]);
 
   return (
     <div className="space-y-4">
@@ -57,7 +62,7 @@ export function NegociacoesView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os vendedores</SelectItem>
-            {mockVendedores.map((nome) => (
+            {vendedores.map((nome) => (
               <SelectItem key={nome} value={nome}>
                 {nome}
               </SelectItem>

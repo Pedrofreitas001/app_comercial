@@ -19,7 +19,7 @@ const SELECT_TICKET = `
   ),
   bonificacao:bonificacoes (
     id, data_pagamento, paga, observacoes,
-    itens:bonificacao_itens ( qtd, preco_base, produto:produtos ( sku ) )
+    itens:bonificacao_itens ( qtd, preco_base, produto:produtos ( sku, descricao ) )
   ),
   notas (
     id, texto, created_at,
@@ -56,7 +56,7 @@ interface TicketRow {
     data_pagamento: string | null;
     paga: boolean;
     observacoes: string | null;
-    itens: { qtd: number; preco_base: number; produto: { sku: string } | null }[];
+    itens: { qtd: number; preco_base: number; produto: { sku: string; descricao: string } | null }[];
   } | null;
   notas: { id: string; texto: string; created_at: string; autor: { nome_completo: string } | null }[];
   arquivos: {
@@ -105,7 +105,12 @@ function mapItem(item: TicketRow["itens"][number]): MockItemNegociacao {
 function mapBonificacao(b: TicketRow["bonificacao"]): MockBonificacao | null {
   if (!b) return null;
   return {
-    itens: b.itens.map((i) => ({ sku: i.produto?.sku ?? "", qtd: i.qtd, precoBase: i.preco_base })),
+    itens: b.itens.map((i) => ({
+      sku: i.produto?.sku ?? "",
+      descricao: i.produto?.descricao,
+      qtd: i.qtd,
+      precoBase: i.preco_base,
+    })),
     dataPagamento: b.data_pagamento ? paraBrData(b.data_pagamento) : null,
     paga: b.paga,
     observacoes: b.observacoes,

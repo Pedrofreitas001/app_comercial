@@ -19,8 +19,7 @@ import { formatBRL, formatBRLPreco, formatNumber } from "@/lib/format";
 import {
   dataDentroDoPeriodo,
   listarBonificacoes,
-  mockVendedores,
-  produtoCatalogo,
+  type MockTicket,
   type PeriodoPreset,
 } from "@/lib/mock-data";
 
@@ -31,12 +30,13 @@ const STATUS_OPTIONS = [
   { value: "pago", label: "Pagas" },
 ];
 
-export function BonificacoesView() {
+export function BonificacoesView({ tickets }: { tickets: MockTicket[] }) {
   const [vendedor, setVendedor] = useState("todos");
   const [status, setStatus] = useState("todos");
   const [periodo, setPeriodo] = useState<PeriodoPreset>("todos");
 
-  const todas = useMemo(() => listarBonificacoes(), []);
+  const todas = useMemo(() => listarBonificacoes(tickets), [tickets]);
+  const vendedores = useMemo(() => [...new Set(tickets.map((t) => t.vendedor))].sort(), [tickets]);
 
   const linhas = useMemo(() => {
     return todas.filter((row) => {
@@ -98,7 +98,7 @@ export function BonificacoesView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os vendedores</SelectItem>
-            {mockVendedores.map((nome) => (
+            {vendedores.map((nome) => (
               <SelectItem key={nome} value={nome}>
                 {nome}
               </SelectItem>
@@ -156,7 +156,7 @@ export function BonificacoesView() {
                     <TableCell className="max-w-[220px] text-muted-foreground">
                       <span className="line-clamp-2">
                         {row.itens
-                          .map((item) => `${produtoCatalogo(item.sku)?.descricao ?? item.sku} ×${item.qtd}`)
+                          .map((item) => `${item.descricao ?? item.sku} ×${item.qtd}`)
                           .join(", ")}
                       </span>
                     </TableCell>
