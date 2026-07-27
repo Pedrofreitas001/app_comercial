@@ -1,11 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  LayoutDashboard,
-  Handshake,
-  Boxes,
-  FolderOpen,
-  Settings,
-} from "lucide-react";
+import { Users, Settings } from "lucide-react";
 import type { UserRole } from "@/lib/types";
 
 export interface NavItem {
@@ -15,11 +9,9 @@ export interface NavItem {
   roles: UserRole[];
 }
 
-// Navegacao enxuta de proposito: o dashboard e o hub, o resto e apoio.
+// Versao resumida: a base de clientes e o unico hub. Cada cliente carrega seu
+// proprio acompanhamento (notas por data) e arquivos.
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/negociacoes", label: "Negociações", icon: Handshake, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/estoque", label: "Estoque", icon: Boxes, roles: ["admin", "gerente", "vendedor", "leitura"] },
-  { href: "/cadastros", label: "Cadastros", icon: FolderOpen, roles: ["admin", "gerente"] },
+  { href: "/clientes", label: "Clientes", icon: Users, roles: ["admin", "gerente", "vendedor", "leitura"] },
   { href: "/configuracoes", label: "Configurações", icon: Settings, roles: ["admin"] },
 ];

@@ -5,14 +5,14 @@ import { File, FileSpreadsheet, FileText, Image as ImageIcon, Paperclip, Trash2,
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ArquivoTicket } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
+import type { ArquivoCliente } from "@/lib/queries/cliente-fup";
 
-const BUCKET = "negociacao-arquivos";
+const BUCKET = "cliente-arquivos";
 
 function tipoDe(nome: string): string {
   const ext = nome.split(".").pop()?.toLowerCase() ?? "";
-  if (["pdf"].includes(ext)) return "PDF";
+  if (ext === "pdf") return "PDF";
   if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext)) return "Imagem";
   if (["xlsx", "xls", "csv"].includes(ext)) return "Excel";
   if (["doc", "docx"].includes(ext)) return "Word";
@@ -42,13 +42,14 @@ function nomeSeguro(nome: string) {
 }
 
 interface Props {
-  ticketId: string;
-  arquivos: ArquivoTicket[];
+  clienteId: string;
+  arquivos: ArquivoCliente[];
   autor: string;
   usuarioId: string;
+  podeEscrever: boolean;
 }
 
-export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }: Props) {
+export function ArquivosPanel({ clienteId, arquivos: iniciais, autor, usuarioId, podeEscrever }: Props) {
   const [arquivos, setArquivos] = useState(iniciais);
   const [arrastando, setArrastando] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -59,13 +60,14 @@ export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }
     setEnviando(true);
     const supabase = createClient();
     const hoje = new Date();
-    const dataFormatada = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}/${hoje.getFullYear()}`;
-    const novos: ArquivoTicket[] = [];
+    const p = (n: number) => String(n).padStart(2, "0");
+    const dataFormatada = `${p(hoje.getDate())}/${p(hoje.getMonth() + 1)}/${hoje.getFullYear()}`;
+    const novos: ArquivoCliente[] = [];
 
     for (const file of Array.from(files)) {
-      // path precisa começar com o negociacao_id: as policies do Storage
-      // usam storage.foldername(name)[1] pra decidir quem pode ler/gravar.
-      const path = `${ticketId}/${Date.now()}-${nomeSeguro(file.name)}`;
+      // path começa com o cliente_id para manter os anexos separados por
+      // cliente dentro do bucket.
+      const path = `${clienteId}/${Date.now()}-${nomeSeguro(file.name)}`;
       const { error: erroUpload } = await supabase.storage.from(BUCKET).upload(path, file);
       if (erroUpload) {
         toast.error(`Falha ao enviar ${file.name}`, { description: erroUpload.message });
@@ -73,9 +75,9 @@ export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }
       }
 
       const { data, error: erroInsert } = await supabase
-        .from("arquivos")
+        .from("cliente_arquivos")
         .insert({
-          negociacao_id: ticketId,
+          cliente_id: clienteId,
           nome: file.name,
           tipo: tipoDe(file.name),
           storage_path: path,
@@ -111,8 +113,8 @@ export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }
 
   async function remover(id: string) {
     const supabase = createClient();
-    const { data: arquivo } = await supabase.from("arquivos").select("storage_path").eq("id", id).single();
-    const { error } = await supabase.from("arquivos").delete().eq("id", id);
+    const { data: arquivo } = await supabase.from("cliente_arquivos").select("storage_path").eq("id", id).single();
+    const { error } = await supabase.from("cliente_arquivos").delete().eq("id", id);
     if (error) {
       toast.error("Não foi possível remover o arquivo", { description: error.message });
       return;
@@ -126,7 +128,7 @@ export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }
 
   async function baixar(id: string, nome: string) {
     const supabase = createClient();
-    const { data: arquivo } = await supabase.from("arquivos").select("storage_path").eq("id", id).single();
+    const { data: arquivo } = await supabase.from("cliente_arquivos").select("storage_path").eq("id", id).single();
     if (!arquivo?.storage_path) return;
     const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(arquivo.storage_path, 60);
     if (error || !data) {
@@ -146,34 +148,36 @@ export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }
         <CardDescription>PDF, imagem, planilha, print de WhatsApp, e-mail exportado...</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setArrastando(true);
-          }}
-          onDragLeave={() => setArrastando(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setArrastando(false);
-            adicionarArquivos(e.dataTransfer.files);
-          }}
-          onClick={() => inputRef.current?.click()}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
-            arrastando ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
-          }`}
-        >
-          <UploadCloud className="size-6 text-muted-foreground" />
-          <p className="text-sm font-medium">
-            {enviando ? "Enviando..." : "Arraste um arquivo ou clique para escolher"}
-          </p>
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => adicionarArquivos(e.target.files)}
-          />
-        </div>
+        {podeEscrever && (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setArrastando(true);
+            }}
+            onDragLeave={() => setArrastando(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setArrastando(false);
+              adicionarArquivos(e.dataTransfer.files);
+            }}
+            onClick={() => inputRef.current?.click()}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+              arrastando ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+            }`}
+          >
+            <UploadCloud className="size-6 text-muted-foreground" />
+            <p className="text-sm font-medium">
+              {enviando ? "Enviando..." : "Arraste um arquivo ou clique para escolher"}
+            </p>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => adicionarArquivos(e.target.files)}
+            />
+          </div>
+        )}
 
         {arquivos.length === 0 ? (
           <p className="text-center text-xs text-muted-foreground">Nenhum arquivo anexado ainda.</p>
@@ -194,14 +198,16 @@ export function ArquivosPanel({ ticketId, arquivos: iniciais, autor, usuarioId }
                       {arquivo.tipo} · {arquivo.tamanho} · {arquivo.autor} · {arquivo.data}
                     </p>
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0 text-muted-foreground"
-                    onClick={() => remover(arquivo.id)}
-                  >
-                    <Trash2 />
-                  </Button>
+                  {podeEscrever && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 text-muted-foreground"
+                      onClick={() => remover(arquivo.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  )}
                 </li>
               );
             })}
