@@ -5,7 +5,8 @@ import type { NotaCategoria } from "@/lib/notas";
 export interface NotaCliente {
   id: string;
   autor: string;
-  data: string; // dd/MM/yyyy HH:mm
+  data: string; // dd/MM/yyyy HH:mm — o que aparece na tela
+  dataIso: string; // original do banco, usado pelo filtro de período
   texto: string;
   categoria: NotaCategoria;
   importante: boolean;
@@ -113,6 +114,7 @@ export async function getClienteDetalhe(supabase: SupabaseClient, id: string): P
         id: n.id,
         autor: n.autor?.nome_completo ?? "—",
         data: paraBrDataHora(n.created_at),
+        dataIso: n.created_at,
         texto: n.texto,
         categoria: n.categoria,
         importante: n.importante,
