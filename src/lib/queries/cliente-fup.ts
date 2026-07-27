@@ -1,11 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClienteRow } from "@/lib/queries/cadastros";
+import type { NotaCategoria } from "@/lib/notas";
 
 export interface NotaCliente {
   id: string;
   autor: string;
   data: string; // dd/MM/yyyy HH:mm
   texto: string;
+  categoria: NotaCategoria;
+  importante: boolean;
 }
 
 export interface ArquivoCliente {
@@ -45,7 +48,7 @@ export async function getClienteDetalhe(supabase: SupabaseClient, id: string): P
     .select(
       `id, codigo_cliente, nome, nome_resumido, nome_fantasia, rede, canal, cidade, estado, cnpj,
        vendedor_nome_origem, gerente_nome_origem, tipo_frete, tabela_preco, status,
-       notas:cliente_notas ( id, texto, created_at, autor:usuarios ( nome_completo ) ),
+       notas:cliente_notas ( id, texto, created_at, categoria, importante, autor:usuarios ( nome_completo ) ),
        arquivos:cliente_arquivos ( id, nome, tipo, tamanho_bytes, data, autor:usuarios ( nome_completo ) )`,
     )
     .eq("id", id)
@@ -69,7 +72,14 @@ export async function getClienteDetalhe(supabase: SupabaseClient, id: string): P
     tipo_frete: string | null;
     tabela_preco: string | null;
     status: "ativo" | "inativo";
-    notas: { id: string; texto: string; created_at: string; autor: { nome_completo: string } | null }[];
+    notas: {
+      id: string;
+      texto: string;
+      created_at: string;
+      categoria: NotaCategoria;
+      importante: boolean;
+      autor: { nome_completo: string } | null;
+    }[];
     arquivos: {
       id: string;
       nome: string;
@@ -96,13 +106,16 @@ export async function getClienteDetalhe(supabase: SupabaseClient, id: string): P
     tipoFrete: row.tipo_frete,
     tabelaPreco: row.tabela_preco,
     status: row.status,
-    // Mais recente primeiro: o FUP é lido de cima pra baixo.
+    // Mais recente primeiro: o FUP é lido de cima pra baixo. O destaque não
+    // reordena a timeline — a tela filtra por ele, mas a cronologia manda.
     notas: row.notas
       .map((n) => ({
         id: n.id,
         autor: n.autor?.nome_completo ?? "—",
         data: paraBrDataHora(n.created_at),
         texto: n.texto,
+        categoria: n.categoria,
+        importante: n.importante,
         _ord: n.created_at,
       }))
       .sort((a, b) => b._ord.localeCompare(a._ord))
@@ -127,12 +140,13 @@ export async function getClienteDetalhe(supabase: SupabaseClient, id: string): P
 export interface ResumoFup {
   notas: number;
   arquivos: number;
+  destaques: number;
   ultimaNota: string | null; // dd/MM/yyyy
 }
 
 export async function getResumoFupPorCliente(supabase: SupabaseClient): Promise<Map<string, ResumoFup>> {
   const [{ data: notas, error: erroNotas }, { data: arquivos, error: erroArquivos }] = await Promise.all([
-    supabase.from("cliente_notas").select("cliente_id, created_at"),
+    supabase.from("cliente_notas").select("cliente_id, created_at, importante"),
     supabase.from("cliente_arquivos").select("cliente_id"),
   ]);
   if (erroNotas) throw erroNotas;
@@ -140,13 +154,14 @@ export async function getResumoFupPorCliente(supabase: SupabaseClient): Promise<
 
   const mapa = new Map<string, ResumoFup>();
   const garantir = (id: string) => {
-    if (!mapa.has(id)) mapa.set(id, { notas: 0, arquivos: 0, ultimaNota: null });
+    if (!mapa.has(id)) mapa.set(id, { notas: 0, arquivos: 0, destaques: 0, ultimaNota: null });
     return mapa.get(id)!;
   };
 
   for (const n of notas ?? []) {
     const r = garantir(n.cliente_id as string);
     r.notas += 1;
+    if (n.importante) r.destaques += 1;
     const iso = n.created_at as string;
     if (!r.ultimaNota || iso > r.ultimaNota) r.ultimaNota = iso;
   }
@@ -157,6 +172,47 @@ export async function getResumoFupPorCliente(supabase: SupabaseClient): Promise<
     if (r.ultimaNota) r.ultimaNota = paraBrData(r.ultimaNota);
   }
   return mapa;
+}
+
+// Campos do cadastro que a tela de detalhe permite corrigir. Só admin/gerente
+// consegue gravar (policy clientes_update em 0002_rls.sql).
+export interface ClienteEditavel {
+  nomeResumido: string;
+  nomeFantasia: string | null;
+  rede: string | null;
+  canal: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cnpj: string | null;
+  vendedorNomeOrigem: string | null;
+  gerenteNomeOrigem: string | null;
+  tipoFrete: string | null;
+  tabelaPreco: string | null;
+}
+
+export async function atualizarCliente(supabase: SupabaseClient, id: string, campos: ClienteEditavel) {
+  const { error } = await supabase
+    .from("clientes")
+    .update({
+      nome_resumido: campos.nomeResumido,
+      nome_fantasia: campos.nomeFantasia,
+      rede: campos.rede,
+      canal: campos.canal,
+      cidade: campos.cidade,
+      estado: campos.estado,
+      cnpj: campos.cnpj,
+      vendedor_nome_origem: campos.vendedorNomeOrigem,
+      gerente_nome_origem: campos.gerenteNomeOrigem,
+      tipo_frete: campos.tipoFrete,
+      tabela_preco: campos.tabelaPreco,
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function atualizarStatusCliente(supabase: SupabaseClient, id: string, status: "ativo" | "inativo") {
+  const { error } = await supabase.from("clientes").update({ status }).eq("id", id);
+  if (error) throw error;
 }
 
 export async function adicionarNotaCliente(

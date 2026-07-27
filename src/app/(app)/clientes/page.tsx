@@ -9,7 +9,7 @@ export default async function ClientesPage() {
 
   const linhas: LinhaCliente[] = clientes.map((c) => ({
     ...c,
-    fup: resumos.get(c.id) ?? { notas: 0, arquivos: 0, ultimaNota: null },
+    fup: resumos.get(c.id) ?? { notas: 0, arquivos: 0, destaques: 0, ultimaNota: null },
   }));
 
   return (

@@ -10,7 +10,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { NotebookPen, Paperclip } from "lucide-react";
+import { NotebookPen, Paperclip, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,7 +105,7 @@ export function ClientesLista({ clientes }: { clientes: LinhaCliente[] }) {
         id: "fup",
         header: "Acompanhamento",
         cell: ({ row }) => {
-          const { notas, arquivos, ultimaNota } = row.original.fup;
+          const { notas, arquivos, destaques, ultimaNota } = row.original.fup;
           if (notas === 0 && arquivos === 0) {
             return <span className="text-xs text-muted-foreground">—</span>;
           }
@@ -116,6 +116,12 @@ export function ClientesLista({ clientes }: { clientes: LinhaCliente[] }) {
                   <Badge variant="outline" className="gap-1">
                     <NotebookPen className="size-3" />
                     {notas}
+                  </Badge>
+                )}
+                {destaques > 0 && (
+                  <Badge variant="outline" className="gap-1 bg-warning/10 text-warning">
+                    <Star className="size-3 fill-current" />
+                    {destaques}
                   </Badge>
                 )}
                 {arquivos > 0 && (
