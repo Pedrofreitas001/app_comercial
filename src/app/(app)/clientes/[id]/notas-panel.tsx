@@ -117,18 +117,20 @@ export function NotasPanel({ clienteId, notas: notasIniciais, autor, usuarioId, 
           Registre ligações, decisões do cliente e combinados — classifique para achar depois.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      {/* min-h dá corpo ao card mesmo com poucas notas, pra não ficar um
+          retângulo achatado ao lado do painel de arquivos. */}
+      <CardContent className="flex min-h-[560px] flex-col gap-5">
         {podeEscrever && (
-          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
             <Textarea
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
               placeholder="Ex.: cliente confirmou por telefone, aguardando aprovação do financeiro..."
-              className="min-h-[72px] bg-background"
+              className="min-h-[120px] bg-background"
             />
             <div className="flex flex-wrap items-center gap-2">
               <Select value={categoria} onValueChange={(v) => setCategoria(v as NotaCategoria)}>
-                <SelectTrigger size="sm" className="w-44 bg-background">
+                <SelectTrigger className="h-9 w-full bg-background sm:w-72">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -143,10 +145,11 @@ export function NotasPanel({ clienteId, notas: notasIniciais, autor, usuarioId, 
                 </SelectContent>
               </Select>
 
+              {/* size="lg" = h-9, mesma altura do seletor de categoria */}
               <Button
                 type="button"
+                size="lg"
                 variant={importante ? "default" : "outline"}
-                size="sm"
                 onClick={() => setImportante((v) => !v)}
                 title="Destaques ficam marcados e podem ser filtrados"
               >
@@ -154,7 +157,7 @@ export function NotasPanel({ clienteId, notas: notasIniciais, autor, usuarioId, 
                 {importante ? "Destaque" : "Marcar destaque"}
               </Button>
 
-              <Button onClick={adicionar} size="sm" disabled={salvando} className="ml-auto">
+              <Button onClick={adicionar} size="lg" disabled={salvando} className="ml-auto">
                 <Send data-icon="inline-start" />
                 {salvando ? "Salvando..." : "Adicionar nota"}
               </Button>
@@ -182,7 +185,7 @@ export function NotasPanel({ clienteId, notas: notasIniciais, autor, usuarioId, 
         )}
 
         {visiveis.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-6 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed py-10 text-center">
             <p className="text-sm font-medium">
               {notas.length === 0 ? "Nenhuma nota ainda" : "Nenhuma nota neste filtro"}
             </p>
@@ -195,7 +198,7 @@ export function NotasPanel({ clienteId, notas: notasIniciais, autor, usuarioId, 
             </p>
           </div>
         ) : (
-          <ul className="space-y-4">
+          <ul className="flex-1 space-y-4">
             {visiveis.map((nota) => {
               const cat = categoriaConfig(nota.categoria);
               return (

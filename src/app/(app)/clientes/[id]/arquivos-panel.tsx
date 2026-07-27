@@ -147,7 +147,9 @@ export function ArquivosPanel({ clienteId, arquivos: iniciais, autor, usuarioId,
         </CardTitle>
         <CardDescription>PDF, imagem, planilha, print de WhatsApp, e-mail exportado...</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      {/* Mesma altura mínima do painel de notas, pra os dois cards ficarem
+          alinhados na grade lado a lado. */}
+      <CardContent className="flex min-h-[560px] flex-col gap-5">
         {podeEscrever && (
           <div
             onDragOver={(e) => {
@@ -161,7 +163,7 @@ export function ArquivosPanel({ clienteId, arquivos: iniciais, autor, usuarioId,
               adicionarArquivos(e.dataTransfer.files);
             }}
             onClick={() => inputRef.current?.click()}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-12 text-center transition-colors ${
               arrastando ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
             }`}
           >
@@ -180,9 +182,11 @@ export function ArquivosPanel({ clienteId, arquivos: iniciais, autor, usuarioId,
         )}
 
         {arquivos.length === 0 ? (
-          <p className="text-center text-xs text-muted-foreground">Nenhum arquivo anexado ainda.</p>
+          <p className="flex flex-1 items-center justify-center text-center text-xs text-muted-foreground">
+            Nenhum arquivo anexado ainda.
+          </p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="flex-1 space-y-2">
             {arquivos.map((arquivo) => {
               const Icone = iconeDe(arquivo.tipo);
               return (
